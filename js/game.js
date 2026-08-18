@@ -60,17 +60,17 @@ const RARITY = {
   legendary:{label:"LEGENDARY", color:"#ffb300"},
 };
 const CARS = [
-  {id:"bronco96",  name:"'96 Ford Bronco XLT",     rarity:"common",  body:"#b71c1c", roof:"#eceff1", speed:.62,handling:.55,tough:.70, spare:true,  cab:"closed", round:false},
-  {id:"wranglerTJ",name:"Jeep Wrangler TJ",        rarity:"common",  body:"#2e7d32", roof:"#20262b", speed:.55,handling:.70,tough:.60, spare:true,  cab:"closed", round:true,  jeepGrille:true},
-  {id:"runner5g",  name:"Toyota 4Runner TRD Pro",  rarity:"common",  body:"#b0bec5", roof:"#aeb8bf", speed:.66,handling:.60,tough:.62, spare:false, cab:"closed", round:false, rack:true},
-  {id:"disco2",    name:"Land Rover Discovery II", rarity:"common",  body:"#1565c0", roof:"#e8eef5", speed:.60,handling:.58,tough:.72, spare:false, cab:"closed", round:false, rack:true},
-  {id:"cherokeeXJ",name:"Jeep Cherokee XJ",        rarity:"uncommon",body:"#6d1b2d", roof:"#5a1626", speed:.72,handling:.68,tough:.68, spare:false, cab:"closed", round:false},
-  {id:"bronco21",  name:"'21 Bronco Badlands",     rarity:"uncommon",body:"#7c8f7a", roof:"#22282e", speed:.76,handling:.66,tough:.70, spare:true,  cab:"closed", round:true},
-  {id:"runner3g",  name:"'97 4Runner Limited",     rarity:"uncommon",body:"#33691e", roof:"#2c5a1a", speed:.70,handling:.74,tough:.66, spare:false, cab:"closed", round:false, rack:true},
-  {id:"defender90",name:"Land Rover Defender 90",  rarity:"rare",    body:"#f9a825", roof:"#f2f4f5", speed:.74,handling:.72,tough:.86, spare:true,  cab:"closed", round:true,  rack:true, snorkel:true},
+  {id:"bronco96",  name:"'96 Ford Bronco XLT",     rarity:"common",  body:"#b71c1c", roof:"#eceff1", speed:.62,handling:.55,tough:.70, spare:true,  cab:"closed", round:false, asset:"suv"},
+  {id:"wranglerTJ",name:"Jeep Wrangler TJ",        rarity:"common",  body:"#2e7d32", roof:"#20262b", speed:.55,handling:.70,tough:.60, spare:true,  cab:"closed", round:true,  jeepGrille:true, asset:"suv"},
+  {id:"runner5g",  name:"Toyota 4Runner TRD Pro",  rarity:"common",  body:"#b0bec5", roof:"#aeb8bf", speed:.66,handling:.60,tough:.62, spare:false, cab:"closed", round:false, rack:true, asset:"suvLuxury"},
+  {id:"disco2",    name:"Land Rover Discovery II", rarity:"common",  body:"#1565c0", roof:"#e8eef5", speed:.60,handling:.58,tough:.72, spare:false, cab:"closed", round:false, rack:true, asset:"suvLuxury"},
+  {id:"cherokeeXJ",name:"Jeep Cherokee XJ",        rarity:"uncommon",body:"#6d1b2d", roof:"#5a1626", speed:.72,handling:.68,tough:.68, spare:false, cab:"closed", round:false, asset:"suv"},
+  {id:"bronco21",  name:"'21 Bronco Badlands",     rarity:"uncommon",body:"#7c8f7a", roof:"#22282e", speed:.76,handling:.66,tough:.70, spare:true,  cab:"closed", round:true,  asset:"suv"},
+  {id:"runner3g",  name:"'97 4Runner Limited",     rarity:"uncommon",body:"#33691e", roof:"#2c5a1a", speed:.70,handling:.74,tough:.66, spare:false, cab:"closed", round:false, rack:true, asset:"suvLuxury"},
+  {id:"defender90",name:"Land Rover Defender 90",  rarity:"rare",    body:"#f9a825", roof:"#f2f4f5", speed:.74,handling:.72,tough:.86, spare:true,  cab:"closed", round:true,  rack:true, snorkel:true, asset:"suv"},
   {id:"willys",    name:"Willys CJ-5",             rarity:"rare",    body:"#556b2f", roof:null,      speed:.68,handling:.88,tough:.62, spare:true,  cab:"open",   round:true,  jeepGrille:true},
-  {id:"bronco66",  name:"'66 Bronco Half-Cab",     rarity:"epic",    body:"#81d4fa", roof:"#f4f6f7", speed:.86,handling:.82,tough:.75, spare:true,  cab:"half",   round:true},
-  {id:"rangeclassic",name:"Range Rover Classic",   rarity:"epic",    body:"#1b4332", roof:"#25543f", speed:.90,handling:.76,tough:.85, spare:false, cab:"closed", round:false, rack:true},
+  {id:"bronco66",  name:"'66 Bronco Half-Cab",     rarity:"epic",    body:"#81d4fa", roof:"#f4f6f7", speed:.86,handling:.82,tough:.75, spare:true,  cab:"half",   round:true,  asset:"truck"},
+  {id:"rangeclassic",name:"Range Rover Classic",   rarity:"epic",    body:"#1b4332", roof:"#25543f", speed:.90,handling:.76,tough:.85, spare:false, cab:"closed", round:false, rack:true, asset:"suvLuxury"},
   {id:"runner85",  name:"'85 4Runner SR5 Soft Top",rarity:"legendary",body:"#d2b48c",roof:null,      speed:.95,handling:.92,tough:.90, spare:true,  cab:"soft",   round:false,
     special:"Sunset Special — starts the match at Stick 3", onlyOne:true},
 ];
@@ -600,8 +600,149 @@ function buildPads(){
 buildWorld();
 
 /* ================================================================
-   VEHICLES
+   VEHICLES — CC0 glTF models (Kenney Car Kit) with procedural
+   accessories; fully procedural builds as fallback / for the
+   one-of-a-kind open-tops.
    ================================================================ */
+const ASSET_TEMPLATES={};
+const WHEEL_TAGS=["frontLeft","frontRight","backLeft","backRight"];
+function normalizeVehicleModel(model){
+  model.updateMatrixWorld(true);
+  // re-center wheel pivots (some kit meshes are baked at the model origin)
+  const seenGeo=new Set();
+  for(const tag of WHEEL_TAGS){
+    let node=null;
+    const re=new RegExp("^wheel_"+tag);   // loader strips dots: wheel_backLeft.009 -> wheel_backLeft009
+    model.traverse(o=>{if(!node&&re.test(o.name))node=o;});
+    if(!node)continue;
+    const box=new THREE.Box3().setFromObject(node);
+    if(box.isEmpty())continue;
+    const worldC=box.getCenter(new THREE.Vector3());
+    const localC=node.worldToLocal(worldC.clone());
+    node.traverse(m=>{
+      if(m.isMesh){
+        if(seenGeo.has(m.geometry.uuid))m.geometry=m.geometry.clone();
+        seenGeo.add(m.geometry.uuid);
+        m.geometry.translate(-localC.x,-localC.y,-localC.z);
+        m.geometry.computeBoundingSphere();
+        m.geometry.computeBoundingBox();
+      }
+    });
+    const shift=localC.clone().applyQuaternion(node.quaternion).multiply(node.scale);
+    node.position.add(shift);
+    node.rotation.order="YXZ";
+    // the kit hubcaps share the dark plastic material — swap them to bright alloy
+    node.traverse(m=>{
+      if(m.isMesh&&/^_defaultMat/.test(m.material.name||""))m.material=MAT.rim;
+    });
+  }
+  // kit vehicles face -Z; rotate to face +X, verified via the headlight material
+  model.rotation.y=-Math.PI/2;
+  const wrap=new THREE.Group();
+  wrap.add(model);
+  wrap.updateMatrixWorld(true);
+  let lightBox=null;
+  model.traverse(o=>{
+    if(o.isMesh){
+      o.castShadow=true;o.receiveShadow=true;
+      if(o.material&&/^lightFront/.test(o.material.name||"")){
+        lightBox=lightBox||new THREE.Box3();
+        lightBox.expandByObject(o);
+      }
+    }
+  });
+  if(lightBox&&lightBox.getCenter(new THREE.Vector3()).x<0){
+    model.rotation.y+=Math.PI;
+    wrap.updateMatrixWorld(true);
+  }
+  // uniform scale to the game's vehicle length, grounded at y=0, centered
+  let bb=new THREE.Box3().setFromObject(wrap);
+  const s=52/(bb.max.x-bb.min.x);
+  model.scale.setScalar(s);
+  model.position.set(0,0,0);
+  wrap.updateMatrixWorld(true);
+  bb=new THREE.Box3().setFromObject(wrap);
+  const c=bb.getCenter(new THREE.Vector3());
+  model.position.set(-c.x,-bb.min.y,-c.z);
+  wrap.updateMatrixWorld(true);
+  bb=new THREE.Box3().setFromObject(wrap);
+  wrap.userData.dims={h:bb.max.y,w:bb.max.z-bb.min.z};
+  // shared material prep (paint is cloned per instance later)
+  model.traverse(o=>{
+    if(!o.isMesh||!o.material)return;
+    const n=o.material.name||"";
+    if(/^window/.test(n)){
+      o.material.transparent=true;o.material.opacity=0.5;
+      o.material.color.set(0x2a3c4e);o.material.metalness=0.7;o.material.roughness=0.12;
+      o.castShadow=false;
+    } else if(/^lightFront/.test(n)){
+      o.material.emissive=new THREE.Color(0xfff3d0);o.material.emissiveIntensity=0.8;
+    } else if(/^lightBack/.test(n)){
+      o.material.emissive=new THREE.Color(0xd32f2f);o.material.emissiveIntensity=0.7;
+    } else if(/^carTire/.test(n)){
+      o.material.roughness=0.95;o.material.color.set(0x16181c);
+    }
+  });
+  return wrap;
+}
+(function loadVehicleAssets(){
+  if(!window.LAXFOO_MODELS||!window.GLTFLoader)return;
+  const loader=new GLTFLoader();
+  let pending=Object.keys(window.LAXFOO_MODELS).length;
+  for(const [key,uri] of Object.entries(window.LAXFOO_MODELS)){
+    loader.load(uri,gltf=>{
+      try{ ASSET_TEMPLATES[key]=normalizeVehicleModel(gltf.scene); }
+      catch(e){ console.warn("vehicle asset failed:",key,e); }
+      if(--pending===0&&pPrev)updatePreviews();
+    },undefined,err=>{ console.warn("vehicle asset load error:",key,err); pending--; });
+  }
+})();
+function buildVehicleFromAsset(def,playerDef){
+  const T=ASSET_TEMPLATES[def.asset];
+  if(!T)return null;
+  const g=new THREE.Group();
+  const body=new THREE.Group(); g.add(body);
+  const model=T.clone(true);
+  body.add(model);
+  const wheels=[];
+  model.traverse(o=>{
+    if(o.isMesh&&o.material&&/^paint/.test(o.material.name||"")){
+      o.material=o.material.clone();
+      o.material.color.set(def.body);
+      o.material.metalness=0.5;o.material.roughness=0.3;
+    }
+    for(const tag of WHEEL_TAGS){
+      if(new RegExp("^wheel_"+tag).test(o.name)){
+        wheels.push({front:tag.startsWith("front"),
+          spin:r=>{o.rotation.x-=r;},
+          steer:v=>{o.rotation.y=-v;}});
+        break;
+      }
+    }
+    if(o.name==="wheel_back"&&!def.spare)o.visible=false;
+  });
+  const D=T.userData.dims;
+  if(def.rack){
+    body.add(box(18,1.5,2,MAT.metal(0x788088),-5,D.h+0.8,6.5));
+    body.add(box(18,1.5,2,MAT.metal(0x788088),-5,D.h+0.8,-6.5));
+    body.add(box(2,1.2,15,MAT.metal(0x788088),-13,D.h+0.8,0));
+    body.add(box(2,1.2,15,MAT.metal(0x788088),3,D.h+0.8,0));
+  }
+  if(def.snorkel){
+    body.add(box(2,12,2,MAT.matte(0x23272c),9,D.h-9,D.w/2-0.6));
+    body.add(box(4,2,2,MAT.matte(0x23272c),11,D.h-3,D.w/2-0.6));
+  }
+  // driver behind the (now translucent) glass
+  const driver=buildFigure(playerDef,{seated:true});
+  driver.position.set(0,D.h*0.30,-4.5);
+  driver.scale.setScalar(0.92);
+  body.add(driver);
+  const stick=buildStick(playerDef);
+  stick.position.set(2,D.h*0.60,D.w/2-1.5);
+  stick.rotation.set(-0.28,0.42,-0.12);
+  body.add(stick);
+  return {group:g,body,wheels};
+}
 function buildWheel(r){
   const g=new THREE.Group();
   const tireGeo=new THREE.CylinderGeometry(r,r,4.8,20); tireGeo.rotateX(Math.PI/2);
@@ -620,6 +761,10 @@ function buildWheel(r){
   return {group:g,spin};
 }
 function buildVehicle(def,playerDef){
+  if(def.asset){
+    const fromAsset=buildVehicleFromAsset(def,playerDef);
+    if(fromAsset)return fromAsset;
+  }
   const g=new THREE.Group();
   const body=new THREE.Group(); g.add(body);      // gets cosmetic roll/pitch
   const paint=MAT.paint(def.body);
@@ -627,12 +772,14 @@ function buildVehicle(def,playerDef){
   const wheelR=7.4;
 
   // wheels
-  const wheels=[],steerW=[];
+  const wheels=[];
   [[16.5,13.4],[16.5,-13.4],[-15.5,13.4],[-15.5,-13.4]].forEach(([wx,wz],i)=>{
     const w=buildWheel(wheelR);
     w.group.position.set(wx,wheelR,wz);
-    g.add(w.group); wheels.push(w);
-    if(i<2)steerW.push(w);
+    g.add(w.group);
+    wheels.push({front:i<2,
+      spin:r=>{w.spin.rotation.z-=r;},
+      steer:v=>{w.group.rotation.y=-v;}});
   });
 
   // main tub
@@ -1238,9 +1385,9 @@ function updateCar(c,dt){
   c.mesh.rotation.y=-(c.a+(c.stun>0?c.spin:0));
   const spinRate=fwd*dt/7.4;
   c.steerVis=lerp(c.steerVis,steer*0.42,Math.min(1,10*dt));
-  c.wheels.forEach((w,i)=>{
-    w.spin.rotation.z-=spinRate;
-    if(i<2)w.group.rotation.y=-c.steerVis;
+  c.wheels.forEach(w=>{
+    w.spin(spinRate);
+    if(w.front)w.steer(c.steerVis);
   });
   c.bodyG.rotation.x=lerp(c.bodyG.rotation.x,c.steerVis*clamp(fwd/maxSpd,0,1)*0.14,Math.min(1,8*dt));
   c.bodyG.rotation.z=lerp(c.bodyG.rotation.z,-throttle*0.045,Math.min(1,6*dt));

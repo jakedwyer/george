@@ -15,8 +15,11 @@ python3 -m http.server 8000   # then visit http://localhost:8000
 ```
 
 Real-time 3D: chase camera, PBR materials with environment reflections, soft sun shadows,
-procedurally modeled vehicles and players, rotating 3D previews in the select screens.
-On weak hardware, add `?fast` to the URL for a low-fx mode.
+rotating 3D previews in the select screens. Vehicles are professional CC0 glTF models from
+[Kenney](https://www.kenney.nl/)'s Car Kit (retinted and accessorized per rig, with the
+procedural builder as fallback); the two open-tops — the Willys and the one-of-one '85
+soft top — are handcrafted in code. Players are procedurally modeled with helmets,
+facemasks, pads, and crosses. On weak hardware, add `?fast` to the URL for a low-fx mode.
 
 ## The rules
 
@@ -48,6 +51,11 @@ Every rig is a 4WD SUV, rarity-tiered from Common to Legendary:
 | **Legendary** | **'85 Toyota 4Runner SR5 Soft Top** — tan, open-top, and the only one in existence. Starts the match at Stick 3. |
 
 Rarer rigs run hotter stats. CPUs can never take the '85 — if you don't drive it, nobody does.
+
+Vehicle base meshes: CC0 by [Kenney](https://www.kenney.nl/) (Car Kit), via
+[pmndrs/market-assets](https://github.com/pmndrs/market-assets) — decompressed and
+quantized offline, embedded as data URIs in `assets/models.js` so the game runs from
+`file://` with no fetches.
 
 ## The crosse-players
 
