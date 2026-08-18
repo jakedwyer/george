@@ -6,12 +6,17 @@ lacrosse balls to climb the ladder of **50 sticks**.
 
 ## How to play
 
-Open `index.html` in any modern browser — no build, no dependencies, one file.
+Open `index.html` in any modern browser. Fully client-side — three.js is vendored, so it
+works offline and from `file://`.
 
 ```sh
 # or serve it locally:
 python3 -m http.server 8000   # then visit http://localhost:8000
 ```
+
+Real-time 3D: chase camera, PBR materials with environment reflections, soft sun shadows,
+procedurally modeled vehicles and players, rotating 3D previews in the select screens.
+On weak hardware, add `?fast` to the URL for a low-fx mode.
 
 ## The rules
 
