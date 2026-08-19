@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LaxFoo Racing</title>
+<style>
+  :root{
+    --common:#9aa5b1; --uncommon:#4caf50; --rare:#2196f3; --epic:#9c27b0; --legendary:#ffb300;
+    --bg:#0e1420; --panel:#182234cc; --ink:#eef3fa;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-user-select:none}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:"Arial Black","Segoe UI",Verdana,Arial,sans-serif}
+  #game{position:absolute;inset:0;width:100%;height:100%;display:block;background:#0e1420}
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:16px;text-align:center;padding:20px;overflow:auto;
+    background:radial-gradient(1200px 700px at 50% 30%, #1d2a44f2 0%, #0e1420fa 70%)}
+  .screen.active{display:flex}
+  h1.logo{font-size:clamp(40px,8vw,92px);line-height:.95;letter-spacing:2px;
+    color:#ffb300;text-shadow:0 4px 0 #7a4b00, 0 8px 24px rgba(0,0,0,.6);transform:rotate(-2deg)}
+  h1.logo span{display:block;font-size:.55em;letter-spacing:10px;color:#8fd3ff}
+  .tag{font-family:Verdana,Arial,sans-serif;font-weight:normal;color:#b7c6dc;max-width:640px;line-height:1.5}
+  .bigbtn{font-family:inherit;font-size:20px;padding:13px 38px;border:none;border-radius:12px;cursor:pointer;
+    background:linear-gradient(#ffc233,#ff9800);color:#3a2100;box-shadow:0 5px 0 #a05e00, 0 10px 24px rgba(0,0,0,.5);
+    letter-spacing:1px}
+  .bigbtn:active{transform:translateY(3px);box-shadow:0 2px 0 #a05e00}
+  .bigbtn.alt{background:linear-gradient(#3a4d70,#26344e);color:#dfe9f7;box-shadow:0 5px 0 #131b2a}
+  h2.pick{font-size:clamp(20px,3.4vw,34px);letter-spacing:3px;color:#8fd3ff;text-shadow:0 3px 0 #123}
+  .selectWrap{display:flex;gap:18px;align-items:stretch;justify-content:center;flex-wrap:wrap;
+    width:min(96vw,1240px)}
+  .grid{display:grid;gap:10px;flex:1;min-width:340px;align-content:start}
+  #playerGrid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+  #carGrid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+  .card{background:var(--panel);border:3px solid #2b3a55;border-radius:12px;padding:10px 12px;cursor:pointer;
+    text-align:left;position:relative;transition:transform .08s;backdrop-filter:blur(3px)}
+  .card:hover{transform:translateY(-3px)}
+  .card.sel{border-color:#ffc233;box-shadow:0 0 0 3px rgba(255,194,51,.35),0 8px 22px rgba(0,0,0,.45);
+    transform:translateY(-3px)}
+  .card .nm{font-size:14.5px;line-height:1.15;padding-right:66px}
+  .card .sub{font-family:Verdana,Arial,sans-serif;font-size:11px;color:#9fb0c8;margin-top:3px;line-height:1.35}
+  .rar{position:absolute;top:9px;right:9px;font-size:9px;letter-spacing:1px;padding:3px 7px;border-radius:20px;color:#08111e}
+  .rar.common{background:var(--common)} .rar.uncommon{background:var(--uncommon)}
+  .rar.rare{background:var(--rare)} .rar.epic{background:var(--epic);color:#fff}
+  .rar.legendary{background:var(--legendary);box-shadow:0 0 14px rgba(255,179,0,.9)}
+  .card.legend{border-color:var(--legendary);background:linear-gradient(160deg,#3a2f12cc,#182234cc 60%)}
+  .swatch{display:inline-block;width:12px;height:12px;border-radius:4px;vertical-align:-1px;margin-right:6px;border:1px solid rgba(255,255,255,.35)}
+  .preview{width:min(92vw,400px);background:var(--panel);border:3px solid #2b3a55;border-radius:14px;
+    padding:14px;display:flex;flex-direction:column;gap:8px;align-items:center;backdrop-filter:blur(3px)}
+  .preview canvas{width:100%;aspect-ratio:4/3;border-radius:10px;background:
+    radial-gradient(closest-side,#2b3d5e,#131c2d)}
+  .preview .pnm{font-size:18px;color:#ffd54f}
+  .preview .psub{font-family:Verdana,Arial,sans-serif;font-size:12px;color:#9fb0c8;line-height:1.4}
+  .preview .perk{font-family:Verdana,Arial,sans-serif;font-size:12.5px;color:#ffd54f}
+  .onlyone{font-family:Verdana,Arial,sans-serif;font-size:11px;color:#ffb300;font-style:italic}
+  .bars{width:100%;display:grid;grid-template-columns:82px 1fr;gap:5px 10px;align-items:center;
+    font-family:Verdana,Arial,sans-serif;font-size:10px;color:#9fb0c8}
+  .bar{height:8px;background:#0d1524;border-radius:4px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#4fc3f7,#81d4fa);border-radius:4px}
+  .row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;align-items:center}
+  .hint{font-family:Verdana,Arial,sans-serif;font-size:12px;color:#7f92ad}
+  .controls{font-family:Verdana,Arial,sans-serif;font-size:13px;color:#aebfd8;line-height:1.9}
+  .controls b{color:#ffd54f;background:#26344e;border-radius:6px;padding:2px 8px;margin:0 2px;font-family:inherit}
+  #overScreen .standRow{display:flex;gap:16px;align-items:center;background:var(--panel);border-radius:10px;
+    padding:10px 18px;width:min(92vw,520px);text-align:left;font-size:16px}
+  #overScreen .standRow .pl{flex:1}
+  #overScreen .standRow .lv{color:#ffd54f}
+  #pauseScreen{background:rgba(8,12,20,.82)}
+
+  /* ---------- in-race HUD ---------- */
+  #hud{position:absolute;inset:0;display:none;pointer-events:none;font-family:"Arial Black",Arial,sans-serif}
+  #hud.active{display:block}
+  .hpanel{position:absolute;background:rgba(8,13,24,.72);border:1.5px solid rgba(140,170,215,.25);
+    border-radius:12px;backdrop-filter:blur(4px)}
+  #stickPanel{top:14px;left:14px;padding:10px 16px 12px;min-width:300px}
+  #stickPanel .lab{font-size:12px;color:#8fd3ff;letter-spacing:1px}
+  #stickPanel .snm{font-size:18px;color:#ffd54f;margin:2px 0 7px}
+  #stickBarWrap{height:9px;background:#0d1524;border-radius:5px;overflow:hidden}
+  #stickBar{height:100%;width:2%;background:linear-gradient(90deg,#ffb300,#ffd54f);border-radius:5px;
+    transition:width .3s}
+  #timer{top:14px;left:50%;transform:translateX(-50%);padding:6px 22px;font-size:28px;color:#fff}
+  #timer.hot{color:#ff5252}
+  #standings{top:14px;right:14px;padding:10px 14px;min-width:190px}
+  #standings .lab{font-size:11px;color:#8fd3ff;letter-spacing:1px;margin-bottom:5px}
+  #standings .srow{display:flex;align-items:center;gap:7px;font-size:13px;margin:4px 0;color:#c8d5e8}
+  #standings .srow.you{color:#ffe082}
+  #standings .dot{width:11px;height:11px;border-radius:50%;flex:none}
+  #standings .srow span.n{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #standings .srow span.v{color:#ffd54f}
+  #ammoRow{bottom:16px;left:14px;padding:10px 14px;display:flex;gap:8px;align-items:center}
+  .pip{width:18px;height:18px;border-radius:50%;border:2px solid #3a4a63}
+  .pip.full{background:radial-gradient(circle at 35% 35%,#ffc46b,#ff9100);border-color:#ffb74d}
+  #minimapBox{bottom:16px;right:14px;padding:8px}
+  #minimap{display:block;border-radius:6px}
+  #msgs{position:absolute;top:110px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;
+    gap:6px;align-items:center}
+  .msg{font-size:21px;text-shadow:0 2px 0 rgba(0,0,0,.6);animation:msgpop .3s ease-out}
+  @keyframes msgpop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  #countdown{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+  #countdown.active{display:flex}
+  #cdNum{font-size:130px;color:#ffd54f;text-shadow:0 6px 0 rgba(0,0,0,.5)}
+  #cdSub{font-size:18px;color:#8fd3ff;text-shadow:0 2px 0 rgba(0,0,0,.5)}
+  @media (prefers-reduced-motion: reduce){ .msg{animation:none} }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="hpanel" id="stickPanel">
+    <div class="lab" id="stickLab">STICK 1 / 50</div>
+    <div class="snm" id="stickName">Splintered Loaner</div>
+    <div id="stickBarWrap"><div id="stickBar"></div></div>
+  </div>
+  <div class="hpanel" id="timer">3:00</div>
+  <div class="hpanel" id="standings"><div class="lab">RACE TO STICK 50</div><div id="standRows"></div></div>
+  <div class="hpanel" id="ammoRow"></div>
+  <div class="hpanel" id="minimapBox"><canvas id="minimap" width="200" height="138"></canvas></div>
+  <div id="msgs"></div>
+  <div id="countdown"><div id="cdNum">3</div><div id="cdSub">Race to Stick 50 — plunk 'em to level up!</div></div>
+</div>
+
+<div id="titleScreen" class="screen active">
+  <h1 class="logo">LAXFOO<span>R A C I N G</span></h1>
+  <p class="tag">Grab a 4WD rig, load your crosse, and brawl through the biggest house match ever thrown.
+    Every player you plunk with a lacrosse ball levels you up the ladder of <b>50 sticks</b>.
+    First driver to run the rack to <b>Stick 50</b> — or hold the best stick when the clock dies — wins.</p>
+  <button class="bigbtn" id="btnStart">PICK YOUR PLAYER</button>
+  <div class="controls">
+    <b>W A S D</b> / <b>ARROWS</b> drive &nbsp; <b>SPACE</b> throw &nbsp; <b>SHIFT</b> drift &nbsp; <b>P</b> pause
+  </div>
+  <p class="hint">Balls fly boomerang-style — they curve back to your stick. Miss a catch? Ground ball. Ground balls win games.</p>
+</div>
+
+<div id="playerScreen" class="screen">
+  <h2 class="pick">CHOOSE YOUR CROSSE-PLAYER</h2>
+  <div class="selectWrap">
+    <div class="grid" id="playerGrid"></div>
+    <div class="preview">
+      <canvas id="playerPrev" width="400" height="300"></canvas>
+      <div class="pnm" id="pPrevName"></div>
+      <div class="psub" id="pPrevPos"></div>
+      <div class="perk" id="pPrevPerk"></div>
+    </div>
+  </div>
+  <div class="row">
+    <button class="bigbtn alt" id="btnBackTitle">BACK</button>
+    <button class="bigbtn" id="btnToCars">TO THE GARAGE</button>
+  </div>
+  <p class="hint">Arrow keys + Enter work too.</p>
+</div>
+
+<div id="carScreen" class="screen">
+  <h2 class="pick">CHOOSE YOUR RIG</h2>
+  <div class="selectWrap">
+    <div class="grid" id="carGrid"></div>
+    <div class="preview">
+      <canvas id="carPrev" width="400" height="300"></canvas>
+      <div class="pnm" id="cPrevName"></div>
+      <div class="psub" id="cPrevSub"></div>
+      <div class="perk" id="cPrevSpec"></div>
+      <div class="onlyone" id="cPrevOnly" style="display:none">The only one in existence.</div>
+      <div class="bars" id="cPrevBars"></div>
+    </div>
+  </div>
+  <div class="row">
+    <button class="bigbtn alt" id="btnBackPlayers">BACK</button>
+    <button class="bigbtn" id="btnRace">START THE MATCH</button>
+  </div>
+  <p class="hint">All 4WD. All game. Rarer rigs run hotter — and there is exactly one tan '85 soft-top in the whole world.</p>
+</div>
+
+<div id="overScreen" class="screen">
+  <h2 class="pick" id="overTitle">MATCH OVER</h2>
+  <div id="overWinner" style="font-size:24px;color:#ffd54f"></div>
+  <div id="overRows" style="display:flex;flex-direction:column;gap:8px"></div>
+  <div class="row">
+    <button class="bigbtn" id="btnRematch">REMATCH</button>
+    <button class="bigbtn alt" id="btnGarage">CHANGE LOADOUT</button>
+  </div>
+</div>
+
+<div id="pauseScreen" class="screen">
+  <h2 class="pick">PAUSED</h2>
+  <div class="controls">
+    <b>W A S D</b> drive &nbsp; <b>SPACE</b> throw &nbsp; <b>SHIFT</b> drift
+  </div>
+  <div class="row">
+    <button class="bigbtn" id="btnResume">RESUME</button>
+    <button class="bigbtn alt" id="btnQuit">QUIT TO TITLE</button>
+  </div>
+</div>
+
+<script src="vendor/three-bundle.js"></script>
+<script src="assets/models.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
