@@ -4,6 +4,11 @@
 in 4WD SUVs tear through the biggest house match ever thrown, plunking each other with
 lacrosse balls to climb the ladder of **50 sticks**.
 
+## Play it
+
+**Live site:** https://jakedwyer.github.io/george/ (published from this repo by the GitHub Pages
+workflow in `.github/workflows/pages.yml` on every push).
+
 ## How to play
 
 Open `index.html` in any modern browser. Fully client-side — three.js is vendored, so it
