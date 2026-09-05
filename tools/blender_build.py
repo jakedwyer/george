@@ -32,7 +32,8 @@ def link(obj):
     return obj
 
 MATS = {}
-def mat(name, color, metallic=0.0, roughness=0.5, alpha=1.0, emission=None, emit_strength=1.0):
+def mat(name, color, metallic=0.0, roughness=0.5, alpha=1.0, emission=None, emit_strength=1.0,
+        coat=0.0, coat_rough=0.05, sheen=0.0, sheen_rough=0.4, ior=1.45):
     if name in MATS: return MATS[name]
     m = bpy.data.materials.new(name)
     m.use_nodes = True
@@ -41,6 +42,8 @@ def mat(name, color, metallic=0.0, roughness=0.5, alpha=1.0, emission=None, emit
     bsdf.inputs["Metallic"].default_value = metallic
     bsdf.inputs["Roughness"].default_value = roughness
     bsdf.inputs["Alpha"].default_value = alpha
+    for k, v in (("Coat Weight", coat), ("Coat Roughness", coat_rough), ("Sheen Weight", sheen), ("Sheen Roughness", sheen_rough), ("IOR", ior)):
+        if k in bsdf.inputs: bsdf.inputs[k].default_value = v
     if emission:
         bsdf.inputs["Emission Color"].default_value = (*emission, 1.0)
         bsdf.inputs["Emission Strength"].default_value = emit_strength
@@ -52,17 +55,17 @@ def mat(name, color, metallic=0.0, roughness=0.5, alpha=1.0, emission=None, emit
 
 def std_mats():
     return dict(
-        paint  = mat("paint",  (0.72, 0.08, 0.08), 0.55, 0.32),
-        roof   = mat("roof",   (0.92, 0.93, 0.94), 0.35, 0.40),
-        window = mat("window", (0.10, 0.16, 0.22), 0.85, 0.08, alpha=0.5),
+        paint  = mat("paint",  (0.72, 0.08, 0.08), 0.65, 0.28, coat=1.0, coat_rough=0.06),
+        roof   = mat("roof",   (0.92, 0.93, 0.94), 0.40, 0.35, coat=0.8, coat_rough=0.08),
+        window = mat("window", (0.10, 0.16, 0.22), 0.85, 0.06, alpha=0.5, ior=1.52),
         lf     = mat("lightFront", (1.0, 0.96, 0.85), 0.0, 0.25, emission=(1.0, 0.95, 0.8), emit_strength=1.5),
         lb     = mat("lightBack",  (0.85, 0.08, 0.06), 0.0, 0.3, emission=(0.9, 0.05, 0.03), emit_strength=1.2),
         tire   = mat("carTire", (0.07, 0.075, 0.08), 0.0, 0.92),
         rim    = mat("rim",     (0.78, 0.80, 0.83), 0.92, 0.28),
         trim   = mat("trim",    (0.10, 0.11, 0.12), 0.05, 0.75),
         chrome = mat("chrome",  (0.90, 0.92, 0.94), 0.98, 0.12),
-        canvas = mat("canvas",  (0.62, 0.50, 0.32), 0.0, 0.95),
-        seat   = mat("seatCloth", (0.18, 0.19, 0.22), 0.0, 0.9),
+        canvas = mat("canvas",  (0.62, 0.50, 0.32), 0.0, 0.95, sheen=0.6, sheen_rough=0.5),
+        seat   = mat("seatCloth", (0.18, 0.19, 0.22), 0.0, 0.85, sheen=0.3),
         rubber = mat("rubberTrim", (0.05, 0.05, 0.06), 0.0, 0.85),
         grille = mat("grille",  (0.06, 0.06, 0.07), 0.3, 0.55),
         glassRed = mat("lightBack", (0.85, 0.08, 0.06)),
@@ -181,12 +184,28 @@ def profile_extrude(name, profile_yz, width, material, bev=0.05, segs=3):
     set_smooth(ob, True)
     return ob
 
+def box_uv(ob, size=1.0):
+    """Cube-project UVs at `size` meters per tile so runtime detail textures tile in world scale."""
+    bm = bmesh.new(); bm.from_mesh(ob.data)
+    uv = bm.loops.layers.uv.verify()
+    for f in bm.faces:
+        n = f.normal; ax, ay, az = abs(n.x), abs(n.y), abs(n.z)
+        for l in f.loops:
+            c = l.vert.co
+            if az >= ax and az >= ay: u, v = c.x, c.y
+            elif ax >= ay: u, v = c.y, c.z
+            else: u, v = c.x, c.z
+            l[uv].uv = (u / size, v / size)
+    bm.to_mesh(ob.data); bm.free()
+    return ob
+
 def join(objs, name):
     objs = [o for o in objs if o is not None]
     tgt = objs[0]
     with bpy.context.temp_override(object=tgt, active_object=tgt, selected_objects=objs, selected_editable_objects=objs):
         bpy.ops.object.join()
     tgt.name = name
+    box_uv(tgt)
     return tgt
 
 def empty(name, loc):
@@ -431,60 +450,118 @@ def build_vehicle(spec, M):
     return body_ob, wheels
 
 # ------------------------------------------------------------------ driver
+def skeleton(seated, hz):
+    """Joint positions + skin radii shared by the body and its garments."""
+    if seated:
+        elbow = lambda s: (s*0.25, 0.17, hz+0.33); wrist = lambda s: (s*0.16, 0.37, hz+0.45)
+        knee  = lambda s: (s*0.14, 0.40, hz+0.02); ankle = lambda s: (s*0.14, 0.50, hz-0.31); toe = lambda s: (s*0.14, 0.64, hz-0.35)
+    else:
+        elbow = lambda s: (s*0.27, 0.05, hz+0.26); wrist = lambda s: (s*0.25, 0.15, hz+0.04)
+        knee  = lambda s: (s*0.12, 0.02, hz-0.45); ankle = lambda s: (s*0.12, 0.02, hz-0.90); toe = lambda s: (s*0.12, 0.17, hz-0.93)
+    P = {  # name: (position, radius)
+        "hips": ((0, 0, hz), 0.145), "spine": ((0, 0.01, hz+0.20), 0.135), "chest": ((0, 0.02, hz+0.42), 0.165),
+        "neck": ((0, 0.02, hz+0.58), 0.055), "head": ((0, 0.03, hz+0.73), 0.105),
+    }
+    for s, tag in ((1,"R"),(-1,"L")):
+        P["sh"+tag] = ((s*0.21, 0.01, hz+0.50), 0.072); P["el"+tag] = (elbow(s), 0.057); P["wr"+tag] = (wrist(s), 0.046)
+        P["hp"+tag] = ((s*0.11, 0.0, hz-0.03), 0.095); P["kn"+tag] = (knee(s), 0.076); P["an"+tag] = (ankle(s), 0.054); P["to"+tag] = (toe(s), 0.046)
+    return P
+
+def mix(a, b, t):
+    return tuple(a[i] + (b[i]-a[i])*t for i in range(3))
+
+def skin_mesh(name, P, E, material, root, grow=0.0, levels=2):
+    """Edge skeleton -> Skin modifier -> subdivision. Radii grow by `grow` (for garment shells)."""
+    names = list(P.keys()); idx = {n:i for i,n in enumerate(names)}
+    bm = bmesh.new(); vs = [bm.verts.new(P[n][0]) for n in names]
+    for a,b in E: bm.edges.new((vs[idx[a]], vs[idx[b]]))
+    ob = new_mesh_obj(name, bm, material)
+    sk = ob.modifiers.new("skin", 'SKIN'); sk.use_smooth_shade = True
+    sv = ob.data.skin_vertices[0].data
+    for n in names:
+        r = P[n][1] + grow; sv[idx[n]].radius = (r, r)
+    sv[idx[root]].use_root = True
+    subsurf(ob, levels)
+    apply_all(ob)
+    return ob
+
+def build_body(seated, M, hz):
+    """Organic body from an edge skeleton via the Skin modifier, dressed in separate jersey / shorts shells."""
+    S = skeleton(seated, hz)
+    E = [("hips","spine"),("spine","chest"),("chest","neck"),("neck","head")]
+    for tag in ("R","L"):
+        E += [("chest","sh"+tag),("sh"+tag,"el"+tag),("el"+tag,"wr"+tag),("hips","hp"+tag),("hp"+tag,"kn"+tag),("kn"+tag,"an"+tag),("an"+tag,"to"+tag)]
+    body = skin_mesh("body", S, E, M["skin"], "hips")
+    # jersey: torso from collar to just below the hips, short sleeves to mid upper-arm
+    J = {"hem": ((0, 0.005, hz-0.01), S["hips"][1]), "spine": S["spine"], "chest": S["chest"],
+         "collar": ((0, 0.02, hz+0.555), 0.075)}
+    JE = [("hem","spine"),("spine","chest"),("chest","collar")]
+    for tag in ("R","L"):
+        J["sh"+tag] = S["sh"+tag]; J["sl"+tag] = (mix(S["sh"+tag][0], S["el"+tag][0], 0.5), 0.062)
+        JE += [("chest","sh"+tag),("sh"+tag,"sl"+tag)]
+    jersey = skin_mesh("jersey", J, JE, M["jersey"], "spine", grow=0.018)
+    # shorts: waistband to just above the knees
+    H = {"waist": ((0, 0, hz+0.11), S["hips"][1]-0.004), "hips": S["hips"]}
+    HE = [("waist","hips")]
+    for tag in ("R","L"):
+        H["hp"+tag] = S["hp"+tag]; H["th"+tag] = (mix(S["hp"+tag][0], S["kn"+tag][0], 0.62), 0.078)
+        HE += [("hips","hp"+tag),("hp"+tag,"th"+tag)]
+    shorts = skin_mesh("shorts", H, HE, M["shorts"], "hips", grow=0.022)
+    return [body, jersey, shorts]
+
 def build_driver(seated, colors):
     M = dict(
-        jersey = mat("jersey", (0.75, 0.10, 0.10), 0.0, 0.85),
-        helmet = mat("helmet", (0.85, 0.15, 0.15), 0.45, 0.30),
-        skin   = mat("skin",   (0.85, 0.62, 0.48), 0.0, 0.6),
+        jersey = mat("jersey", (0.75, 0.10, 0.10), 0.0, 0.85, sheen=0.7, sheen_rough=0.45),
+        helmet = mat("helmet", (0.85, 0.15, 0.15), 0.40, 0.22, coat=1.0, coat_rough=0.05),
+        skin   = mat("skin",   (0.85, 0.62, 0.48), 0.0, 0.55),
         pads   = mat("pads",   (0.16, 0.17, 0.19), 0.05, 0.8),
-        gloves = mat("gloves", (0.12, 0.12, 0.13), 0.05, 0.8),
+        gloves = mat("gloves", (0.12, 0.12, 0.13), 0.05, 0.7),
         mask   = mat("mask",   (0.80, 0.82, 0.85), 0.9, 0.3),
-        shorts = mat("shorts", (0.12, 0.14, 0.18), 0.0, 0.85),
-        shoe   = mat("shoe",   (0.94, 0.94, 0.92), 0.0, 0.6),
+        shorts = mat("shorts", (0.12, 0.14, 0.18), 0.0, 0.85, sheen=0.5),
+        shoe   = mat("shoe",   (0.94, 0.94, 0.92), 0.0, 0.55, coat=0.3),
         white  = mat("stripe", (0.96, 0.96, 0.96), 0.2, 0.5),
+        eye    = mat("eye",    (0.06, 0.05, 0.05), 0.2, 0.15, coat=1.0),
+        eyewhite = mat("eyeWhite", (0.92, 0.90, 0.88), 0.0, 0.3, coat=0.6),
+        guard  = mat("mouthguard", (0.85, 0.85, 0.80), 0.0, 0.35, coat=0.5),
     )
-    parts = []
-    hipZ = 0.55 if seated else 0.95
-    # torso (subdivided, tapered)
-    torso = rbox("torso", (0.44, 0.26, 0.55), (0, 0, hipZ+0.32), M["jersey"], bev=0.09, segs=4)
-    subsurf(torso, 2); parts.append(torso)
-    parts.append(rbox("padL", (0.20, 0.30, 0.13), (-0.25, 0, hipZ+0.56), M["pads"], bev=0.05, segs=3))
-    parts.append(rbox("padR", (0.20, 0.30, 0.13), ( 0.25, 0, hipZ+0.56), M["pads"], bev=0.05, segs=3))
-    parts.append(rbox("chestpad", (0.36, 0.06, 0.22), (0, 0.14, hipZ+0.40), M["pads"], bev=0.03))
-    parts.append(rbox("numpatch", (0.16, 0.01, 0.19), (0, 0.146, hipZ+0.40), M["white"], bev=0.004))
-    parts.append(cylinder("neck", 0.065, 0.10, (0, 0, hipZ+0.64), M["skin"], segs=16))
-    # head + helmet + facemask
-    head = cylinder("head", 0.10, 0.20, (0, 0.0, hipZ+0.79), M["skin"], segs=24, bev=0.07)
-    parts.append(head)
-    hel = rbox("helmetshell", (0.26, 0.29, 0.26), (0, -0.01, hipZ+0.82), M["helmet"], bev=0.10, segs=5)
+    hz = 0.55 if seated else 0.95
+    parts = build_body(seated, M, hz)
+    # gear
+    parts.append(rbox("padL", (0.19, 0.27, 0.12), (-0.235, 0.01, hz+0.55), M["pads"], bev=0.05, segs=3))
+    parts.append(rbox("padR", (0.19, 0.27, 0.12), ( 0.235, 0.01, hz+0.55), M["pads"], bev=0.05, segs=3))
+    parts.append(rbox("chestpad", (0.30, 0.06, 0.20), (0, 0.17, hz+0.40), M["pads"], bev=0.03))
+    parts.append(rbox("numpatch", (0.14, 0.01, 0.17), (0, 0.205, hz+0.40), M["white"], bev=0.004))
+    # face under the mask: eyes, brow, mouthguard
+    for s in (1,-1):
+        parts.append(cylinder("eyewhite%d"%(s+1), 0.021, 0.012, (s*0.036, 0.13, hz+0.755), M["eyewhite"], axis='Y', segs=14))
+        parts.append(cylinder("pupil%d"%(s+1), 0.010, 0.014, (s*0.036, 0.135, hz+0.755), M["eye"], axis='Y', segs=12))
+    parts.append(rbox("brow", (0.10, 0.02, 0.012), (0, 0.128, hz+0.782), M["skin"], bev=0.004))
+    parts.append(rbox("nose", (0.026, 0.03, 0.04), (0, 0.142, hz+0.725), M["skin"], bev=0.01, segs=3))
+    parts.append(rbox("mouthguard", (0.07, 0.025, 0.02), (0, 0.135, hz+0.685), M["guard"], bev=0.008))
+    # helmet: shell + brim + stripe + facemask cage
+    hel = rbox("helmetshell", (0.27, 0.30, 0.27), (0, 0.0, hz+0.775), M["helmet"], bev=0.11, segs=5)
     subsurf(hel, 2); parts.append(hel)
-    parts.append(rbox("visor", (0.22, 0.10, 0.02), (0, 0.15, hipZ+0.86), M["helmet"], bev=0.008))
-    parts.append(rbox("stripe", (0.03, 0.26, 0.01), (0, -0.02, hipZ+0.955), M["white"], bev=0.003))
-    for k in range(3):
-        z = hipZ + 0.80 - k*0.035
-        parts.append(tube_from_points("maskbar%d"%k, [(-0.11, 0.04, z), (0, 0.17, z-0.01), (0.11, 0.04, z)], 0.007, M["mask"]))
-    parts.append(tube_from_points("maskv", [(0, 0.17, hipZ+0.84), (0, 0.17, hipZ+0.70)], 0.007, M["mask"], smooth_path=False))
-    # arms
+    parts.append(rbox("visor", (0.23, 0.11, 0.02), (0, 0.16, hz+0.82), M["helmet"], bev=0.008))
+    parts.append(rbox("stripe", (0.03, 0.27, 0.012), (0, -0.01, hz+0.915), M["white"], bev=0.003))
+    parts.append(rbox("earhole", (0.02, 0.05, 0.05), (0.14, 0.0, hz+0.74), M["pads"], bev=0.01))
+    parts.append(rbox("earhole2", (0.02, 0.05, 0.05), (-0.14, 0.0, hz+0.74), M["pads"], bev=0.01))
+    for k in range(4):
+        z = hz + 0.795 - k*0.035
+        parts.append(tube_from_points("maskbar%d"%k, [(-0.12, 0.05, z), (0, 0.185, z-0.012), (0.12, 0.05, z)], 0.0065, M["mask"]))
+    for xx in (-0.045, 0.045):
+        parts.append(tube_from_points("maskv%d"%int(xx*100), [(xx, 0.17, hz+0.83), (xx, 0.18, hz+0.66)], 0.0065, M["mask"], smooth_path=False))
+    parts.append(tube_from_points("chinstrap", [(-0.12, 0.05, hz+0.66), (0, 0.10, hz+0.62), (0.12, 0.05, hz+0.66)], 0.006, M["pads"]))
+    # gloves + cleats (positions match the skeleton wrists / toes)
+    if seated: wr = lambda s: (s*0.16, 0.37, hz+0.45); to = lambda s: (s*0.14, 0.64, hz-0.35)
+    else:      wr = lambda s: (s*0.25, 0.15, hz+0.04); to = lambda s: (s*0.12, 0.17, hz-0.93)
     for s in (1,-1):
-        sh = (s*0.28, 0.02, hipZ+0.52)
-        if seated:
-            elbow = (s*0.30, 0.22, hipZ+0.36); hand = (s*0.16, 0.42, hipZ+0.44)
-        else:
-            elbow = (s*0.34, 0.08, hipZ+0.28); hand = (s*0.22, 0.28, hipZ+0.22)
-        parts.append(tube_from_points("arm%d"%(s+1), [sh, elbow, hand], 0.052, M["jersey"]))
-        parts.append(cylinder("glove%d"%(s+1), 0.055, 0.13, hand, M["gloves"], segs=16, bev=0.03))
-    # legs
-    for s in (1,-1):
-        hip = (s*0.13, 0.0, hipZ)
-        if seated:
-            knee = (s*0.15, 0.42, hipZ+0.02); foot = (s*0.15, 0.55, hipZ-0.35)
-        else:
-            knee = (s*0.13, 0.02, hipZ-0.45); foot = (s*0.13, 0.03, hipZ-0.90)
-        parts.append(tube_from_points("thigh%d"%(s+1), [hip, knee], 0.085, M["shorts"], smooth_path=False))
-        parts.append(tube_from_points("shin%d"%(s+1), [knee, foot], 0.062, M["skin"], smooth_path=False))
-        parts.append(rbox("shoe%d"%(s+1), (0.13, 0.28, 0.09), (foot[0], foot[1]+0.08, foot[2]-0.02), M["shoe"], bev=0.03))
-    parts.append(rbox("hips", (0.36, 0.26, 0.18), (0, 0.0, hipZ+0.02), M["shorts"], bev=0.06, segs=3))
-    for p in parts: apply_all(p)
+        g = rbox("glove%d"%(s+1), (0.10, 0.15, 0.08), wr(s), M["gloves"], bev=0.035, segs=3); subsurf(g, 1); parts.append(g)
+        parts.append(rbox("cuff%d"%(s+1), (0.11, 0.05, 0.10), (wr(s)[0], wr(s)[1]-0.08, wr(s)[2]), M["pads"], bev=0.02))
+        t = to(s); parts.append(rbox("cleat%d"%(s+1), (0.11, 0.29, 0.085), (t[0], t[1]-0.06, t[2]+0.02), M["shoe"], bev=0.03, segs=3))
+        parts.append(rbox("sole%d"%(s+1), (0.115, 0.30, 0.02), (t[0], t[1]-0.06, t[2]-0.02), M["pads"], bev=0.006))
+        parts.append(rbox("sock%d"%(s+1), (0.09, 0.09, 0.10), (t[0], t[1]-0.15, t[2]+0.09), M["white"], bev=0.03))
+    for p in parts:
+        if p.name not in ("body","jersey","shorts"): apply_all(p)
     return join(parts, "driver")
 
 def build_stick():
@@ -509,7 +586,7 @@ def build_stick():
 
 # ------------------------------------------------------------------ export
 def export(path, render=False):
-    kw = dict(filepath=path, export_format='GLB', export_apply=True, export_texcoords=False,
+    kw = dict(filepath=path, export_format='GLB', export_apply=True, export_texcoords=True,
               export_normals=True, export_materials='EXPORT', export_animations=False,
               export_skins=False, export_morph=False, export_cameras=False, export_lights=False,
               export_yup=True, use_visible=True)

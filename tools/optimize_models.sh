@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# Rebuild all 3D assets: Blender (bpy) -> GLB -> gltf-transform quantize -> assets/models.js
+# Rebuild every generated asset:
+#   Blender (bpy) models  -> GLB -> gltf-transform (quantize; drivers also simplified) -> assets/models.js
+#   Blender/Cycles bakes  -> albedo / normal / roughness JPEG sets  ┐
+#   Blender/Cycles sky    -> equirectangular HDRI                    ┴-> assets/textures.js
 # Requires: pip install bpy ; npm i -g @gltf-transform/cli   (or npx)
 set -euo pipefail
 cd "$(dirname "$0")/.."
-RAW=build/models; OPT=build/opt
-rm -rf "$RAW" "$OPT"; mkdir -p "$RAW" "$OPT"
+RAW=build/models; OPT=build/opt; TEX=build/tex; SKY=build/sky.hdr
+rm -rf "$RAW" "$OPT" "$TEX"; mkdir -p "$RAW" "$OPT" "$TEX"
+
 python3 tools/blender_build.py --out "$RAW"
 for f in "$RAW"/*.glb; do
   n=$(basename "$f")
@@ -25,3 +29,7 @@ open('assets/models.js','w').write(
  "window.LAXFOO_MODELS = "+json.dumps(models)+";\n")
 print("assets/models.js written:", len(models), "models")
 PY
+
+python3 tools/blender_textures.py --out "$TEX"
+python3 tools/blender_sky.py --out "$SKY"
+python3 tools/embed_textures.py --tex "$TEX" --sky "$SKY" --out assets/textures.js
