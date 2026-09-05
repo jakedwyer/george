@@ -124,8 +124,16 @@
   .tbtn.md{width:76px;height:76px}
   .tbtn.lg{width:104px;height:104px;font-size:15px;letter-spacing:1px;flex-direction:column;gap:2px}
   .tbtn.lg .ico{font-size:34px;line-height:1}
-  #tLeft{left:calc(18px + var(--sal));bottom:calc(22px + var(--sab))}
-  #tRight{left:calc(112px + var(--sal));bottom:calc(22px + var(--sab))}
+  #joyZone{position:absolute;left:0;top:30%;bottom:0;width:48%;pointer-events:auto;touch-action:none}
+  #joyBase{position:absolute;width:136px;height:136px;margin:-68px 0 0 -68px;border-radius:50%;display:none;
+    background:radial-gradient(circle,rgba(10,16,28,.35),rgba(10,16,28,.65));border:2px solid rgba(160,190,235,.4);
+    box-shadow:0 6px 18px rgba(0,0,0,.4);backdrop-filter:blur(3px)}
+  #joyBase.on{display:block}
+  #joyBase::before{content:"";position:absolute;inset:44px;border-radius:50%;border:1.5px dashed rgba(160,190,235,.35)}
+  #joyKnob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#ffd76a,#ff9d00);border:2px solid #ffe6a3;box-shadow:0 4px 12px rgba(0,0,0,.45)}
+  #joyHint{position:absolute;left:calc(24px + var(--sal));bottom:calc(30px + var(--sab));pointer-events:none;
+    font-family:Verdana,Arial,sans-serif;font-size:11px;color:rgba(200,215,240,.7);letter-spacing:1px}
   #tThrow{right:calc(18px + var(--sar));bottom:calc(18px + var(--sab));
     background:radial-gradient(circle at 35% 30%,rgba(255,196,80,.85),rgba(255,120,0,.75));border-color:#ffd54f;color:#2a1600}
   #tBrake{right:calc(134px + var(--sar));bottom:calc(22px + var(--sab))}
@@ -190,8 +198,8 @@
 </div>
 
 <div id="touchUI">
-  <div class="tbtn md" id="tLeft" data-key="arrowleft">◀</div>
-  <div class="tbtn md" id="tRight" data-key="arrowright">▶</div>
+  <div id="joyZone"><div id="joyBase"><div id="joyKnob"></div></div></div>
+  <div id="joyHint">◎ DRAG TO STEER · PULL BACK TO BRAKE</div>
   <div class="tbtn lg" id="tThrow"><span class="ico">🥍</span>THROW</div>
   <div class="tbtn sm" id="tBrake" data-key="s">BRAKE</div>
   <div class="tbtn sm" id="tDrift" data-key="shift">DRIFT</div>
@@ -207,10 +215,10 @@
     First driver to run the rack to <b>Stick 50</b> — or hold the best stick when the clock dies — wins.</p>
   <button class="bigbtn" id="btnStart">PICK YOUR PLAYER</button>
   <div class="controls">
-    <b>W A S D</b> / <b>ARROWS</b> drive &nbsp; <b>SPACE</b> throw &nbsp; <b>SHIFT</b> drift &nbsp; <b>P</b> pause
+    <b>W A S D</b> / <b>ARROWS</b> drive &nbsp; <b>SPACE</b> throw &nbsp; <b>SHIFT</b> drift &nbsp; <b>P</b> pause &nbsp; <b>🎮</b> gamepad
   </div>
   <p class="hint">Balls fly boomerang-style — they curve back to your stick. Miss a catch? Ground ball. Ground balls win games.</p>
-  <p class="hint touchOnly" style="display:none">On touch: auto-gas, ◀ ▶ to steer, tap 🥍 THROW (or tap anywhere on the field to aim a throw).</p>
+  <p class="hint touchOnly" style="display:none">On touch: drag the left side of the screen like a joystick to steer (pull back to brake), tap 🥍 THROW or tap the field to aim a throw. Gamepads work too.</p>
 </div>
 
 <div id="playerScreen" class="screen">
@@ -274,6 +282,7 @@
 
 <script src="vendor/three-bundle.js"></script>
 <script src="assets/models.js"></script>
+<script src="assets/textures.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

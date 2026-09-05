@@ -164,6 +164,23 @@ function engineTick(speed,on){
 
 /* ---------------- INPUT ---------------- */
 const keys={};
+const input={steer:0,throttle:null,drift:false,joyActive:false,gp:false,gpThrow:false,gpPause:false};
+function pollGamepad(){
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  let gp=null; for(const p of pads){ if(p&&p.connected){gp=p;break;} }
+  if(!gp){input.gp=false;return;}
+  input.gp=true;
+  const dz=v=>Math.abs(v)<0.12?0:(v-Math.sign(v)*0.12)/0.88;
+  const ax0=dz(gp.axes[0]||0), ax1=dz(gp.axes[1]||0);
+  const rt=(gp.buttons[7]&&gp.buttons[7].value)||0, lt=(gp.buttons[6]&&gp.buttons[6].value)||0;
+  input.gpSteer=ax0;
+  input.gpThrottle=(rt>0.02||lt>0.02)?(rt-0.6*lt):(Math.abs(ax1)>0?-ax1:null);
+  input.gpDrift=!!((gp.buttons[1]&&gp.buttons[1].pressed)||(gp.buttons[4]&&gp.buttons[4].pressed));
+  const thr=!!((gp.buttons[0]&&gp.buttons[0].pressed)||(gp.buttons[5]&&gp.buttons[5].pressed));
+  input.gpThrowEdge=thr&&!input.gpThrow; input.gpThrow=thr;
+  const pause=!!(gp.buttons[9]&&gp.buttons[9].pressed);
+  if(pause&&!input.gpPause)togglePause(); input.gpPause=pause;
+}
 const TOUCH=(matchMedia&&matchMedia("(pointer: coarse)").matches)||("ontouchstart" in window)||navigator.maxTouchPoints>0;
 const MOBILE=TOUCH&&Math.min(screen.width,screen.height)<=1024;   // phones + iPads: lighter render tier
 if(TOUCH)document.body.classList.add("touch");
@@ -199,15 +216,16 @@ addEventListener("pointerdown",e=>{
    THREE.JS SETUP
    ================================================================ */
 const FAST=/[?&]fast/.test(location.search);   // low-fx mode for weak hardware / CI
+const HIFI=!FAST&&!MOBILE&&!!window.POST;       // desktop tier: post-processing (SSAO + bloom), 4K shadows
 const canvas=document.getElementById("game");
 const renderer=new THREE.WebGLRenderer({canvas,antialias:!FAST,powerPreference:"high-performance"});
-renderer.setPixelRatio(FAST?0.6:Math.min(devicePixelRatio,MOBILE?1.5:2));
+renderer.setPixelRatio(FAST?0.6:Math.min(devicePixelRatio,MOBILE?1.5:(HIFI?1.5:2)));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=!FAST;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=1.05;
+renderer.toneMappingExposure=0.92;
 renderer.useLegacyLights=false;
 
 const scene=new THREE.Scene();
@@ -218,17 +236,22 @@ const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,2,7000);
 camera.position.set(360,300,1900);
 const camLook=new THREE.Vector3(1280,0,880);
 
-const sun=new THREE.DirectionalLight(0xffedd2,3.4);
+const sun=new THREE.DirectionalLight(0xffedd2,3.8);
 sun.castShadow=true;
-sun.shadow.mapSize.set(MOBILE?1024:2048,MOBILE?1024:2048);
+const SHADOW_RES=MOBILE?1024:(HIFI?4096:2048);
+sun.shadow.mapSize.set(SHADOW_RES,SHADOW_RES);
 sun.shadow.camera.left=-750; sun.shadow.camera.right=750;
 sun.shadow.camera.top=750; sun.shadow.camera.bottom=-750;
 sun.shadow.camera.near=200; sun.shadow.camera.far=3200;
 sun.shadow.bias=-0.0004; sun.shadow.normalBias=2.5;
 scene.add(sun); scene.add(sun.target);
-scene.add(new THREE.HemisphereLight(0xbdd8ff,0x6b7f62,0.38));
+const hemi=new THREE.HemisphereLight(0xbdd8ff,0x6b7f62,0.38); scene.add(hemi);
 
-// environment reflections from a tiny hand-built light box
+// environment reflections: a tiny hand-built light box right away (so the menu previews have
+// something to reflect), replaced by the Blender/Cycles-rendered sky HDRI once it decodes
+const SUN_DIR=new THREE.Vector3(520,900,300).normalize();   // overwritten from the HDRI's sun disc
+const SUN_DIST=1080;
+let skyDome=null;
 {
   const env=new THREE.Scene();
   env.add(new THREE.Mesh(new THREE.BoxGeometry(200,200,200),
@@ -243,9 +266,94 @@ scene.add(new THREE.HemisphereLight(0xbdd8ff,0x6b7f62,0.38));
   scene.environment=pmrem.fromScene(env,0.05).texture;
   pmrem.dispose();
 }
+function halfToFloat(h){
+  const e=(h>>10)&0x1f, f=h&0x3ff, sg=(h&0x8000)?-1:1;
+  if(e===0)return sg*Math.pow(2,-14)*(f/1024);
+  if(e===31)return f?NaN:sg*Infinity;
+  return sg*Math.pow(2,e-15)*(1+f/1024);
+}
+function applySkyHDR(tex){
+  const {data,width,height}=tex.image;
+  const n=width*height, isHalf=data instanceof Uint16Array;
+  const f=isHalf?new Float32Array(n*4):data;
+  if(isHalf)for(let i=0;i<n*4;i++)f[i]=halfToFloat(data[i]);
+  // Cycles writes physical sky radiance; normalise so the robust mean of the sky (5th-95th
+  // percentile, i.e. without the sun disc) sits at 0.32; the sun disc is clamped so image-based
+  // lighting doesn't double-count the directional sun (it still reads as a hot spot for bloom)
+  const lums=[];
+  for(let y=0;y<height;y++){
+    const up=tex.flipY?(y<height/2):(y>=height/2); if(!up)continue;
+    for(let x=0;x<width;x++){const i=(y*width+x)*4;lums.push(0.2126*f[i]+0.7152*f[i+1]+0.0722*f[i+2]);}
+  }
+  lums.sort((a,b)=>a-b);
+  const lo=lums[Math.floor(lums.length*0.05)], hi=lums[Math.floor(lums.length*0.95)];
+  let sum=0,cnt=0; for(const l of lums){if(l>=lo&&l<=hi){sum+=l;cnt++;}}
+  const scale=0.28/((sum/cnt)||1);
+  for(let i=0;i<n*4;i++){ if((i&3)!==3)f[i]=Math.min(60,f[i]*scale); }
+  if(isHalf){ for(let i=0;i<n*4;i++)data[i]=THREE.DataUtils.toHalfFloat(f[i]); }
+  tex.needsUpdate=true;
+  const px=(x,y,c)=>f[(y*width+x)*4+c];
+  // sun = brightest texel; horizon colour = mean of the middle row (for fog)
+  let best=-1,bx=0,by=0; const hr=[0,0,0]; const mid=height>>1;
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const r=px(x,y,0),g=px(x,y,1),b=px(x,y,2),l=r+g+b;
+    if(l>best){best=l;bx=x;by=y;}
+    if(y===mid){hr[0]+=r;hr[1]+=g;hr[2]+=b;}
+  }
+  const u=(bx+0.5)/width; let v=(by+0.5)/height; if(tex.flipY)v=1-v;
+  let elev=(v-0.5)*Math.PI; if(elev<0){elev=-elev;}           // the sun is above the horizon by construction
+  const phi=(u-0.5)*Math.PI*2;
+  SUN_DIR.set(Math.cos(elev)*Math.cos(phi),Math.sin(elev),Math.cos(elev)*Math.sin(phi));
+  const sc=new THREE.Color(px(bx,by,0),px(bx,by,1),px(bx,by,2));
+  const mx=Math.max(sc.r,sc.g,sc.b)||1; sun.color.setRGB(sc.r/mx,sc.g/mx,sc.b/mx).lerp(new THREE.Color(1,1,1),0.35);
+  const tm=x=>{x*=renderer.toneMappingExposure*0.9; x=(x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14); return Math.pow(clamp(x,0,1),1/2.2);};
+  const fogC=new THREE.Color(tm(hr[0]/width),tm(hr[1]/width),tm(hr[2]/width));
+  scene.fog.color.copy(fogC); scene.background=fogC;
+  hemi.intensity=0.16;   // the sky HDRI now carries the ambient
+  // image-based lighting
+  const pmrem=new THREE.PMREMGenerator(renderer);
+  const envTex=pmrem.fromEquirectangular(tex).texture; pmrem.dispose();
+  scene.environment=envTex;
+  if(pPrev){pPrev.s.environment=envTex;cPrev.s.environment=envTex;}
+  // visible sky: a dome mesh (not scene.background) so the post-processing depth/normal passes stay clean
+  const geo=new THREE.SphereGeometry(3300,48,24); geo.scale(-1,1,1);
+  skyDome=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:tex,fog:false}));
+  skyDome.rotation.y=Math.PI; skyDome.frustumCulled=false; skyDome.name="sky";
+  scene.add(skyDome);
+}
+if(window.LAXFOO_TEX&&window.LAXFOO_TEX.sky&&window.RGBELoader&&!FAST){
+  new RGBELoader().load(window.LAXFOO_TEX.sky,tex=>{
+    try{applySkyHDR(tex);}catch(e){console.warn("sky HDR failed:",e);}
+  },undefined,e=>console.warn("sky HDR load error:",e));
+}
+
+// post-processing (desktop): SSAO -> bloom -> filmic tone map + sRGB output. The scene is rendered
+// into half-float buffers so highlights survive until the tone-mapping pass.
+let composer=null;
+function makeComposer(){
+  const pr=renderer.getPixelRatio();
+  const rt=new THREE.WebGLRenderTarget(innerWidth*pr,innerHeight*pr,{type:THREE.HalfFloatType});
+  const cp=new POST.EffectComposer(renderer,rt);
+  const ssao=new POST.SSAOPass(scene,camera,innerWidth,innerHeight);
+  ssao.kernelRadius=18; ssao.minDistance=0.0004; ssao.maxDistance=0.03;
+  ssao.beautyRenderTarget.texture.type=THREE.HalfFloatType;
+  // keep the sky dome out of the depth/normal passes so AO never touches the sky
+  const ro=ssao.renderOverride.bind(ssao);
+  ssao.renderOverride=function(...a){ if(skyDome)skyDome.visible=false; ro(...a); if(skyDome)skyDome.visible=true; };
+  cp.addPass(ssao);
+  cp.addPass(new POST.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.18,0.4,0.92));
+  cp.addPass(new POST.ShaderPass({
+    uniforms:{tDiffuse:{value:null}},
+    vertexShader:"varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }",
+    fragmentShader:"uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ gl_FragColor=texture2D(tDiffuse,vUv);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n}",
+  }));
+  return cp;
+}
+if(HIFI){ try{composer=makeComposer();}catch(e){console.warn("post-processing unavailable:",e);composer=null;} }
 
 function onResize(){
   renderer.setSize(innerWidth,innerHeight);
+  if(composer)composer.setSize(innerWidth,innerHeight);
   camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
   updateOrientation();
@@ -376,6 +484,61 @@ const TEX={
 };
 TEX.arrow.colorSpace=THREE.SRGBColorSpace;
 
+/* ---------------- BAKED PBR TEXTURE SETS (Blender/Cycles, see tools/blender_textures.py) ---------------- */
+const TSET={};
+const PENDING_CLONES=new Map();   // source texture uuid -> repeat-clones waiting for its image
+(function loadTextureSets(){
+  if(!window.LAXFOO_TEX||!window.LAXFOO_TEX.sets)return;
+  const tl=new THREE.TextureLoader();
+  const aniso=renderer.capabilities.getMaxAnisotropy();
+  for(const [name,src] of Object.entries(window.LAXFOO_TEX.sets)){
+    const set={};
+    for(const k of ["albedo","normal","rough"]){
+      if(!src[k])continue;
+      const t=tl.load(src[k],tex=>{
+        for(const c of PENDING_CLONES.get(tex.uuid)||[])c.needsUpdate=true;
+        PENDING_CLONES.delete(tex.uuid);
+      });
+      t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=aniso;
+      t.colorSpace=k==="albedo"?THREE.SRGBColorSpace:THREE.NoColorSpace;
+      set[k]=t;
+    }
+    TSET[name]=set;
+  }
+})();
+// a repeat-scaled copy of a set texture (shares the decoded image; uploads once it has arrived)
+function texRepeat(t,rx,ry){
+  const c=t.clone(); c.repeat.set(rx,ry);
+  if(!t.image){
+    c.version=0;
+    if(!PENDING_CLONES.has(t.uuid))PENDING_CLONES.set(t.uuid,[]);
+    PENDING_CLONES.get(t.uuid).push(c);
+  }
+  return c;
+}
+// MeshStandardMaterial from a baked set: albedo * color, tangent normal map, roughness map.
+// Falls back to the procedural canvas texture (or flat colour) when the set is missing.
+function pbr(name,rx,ry,o={},fallbackMap=null){
+  const set=TSET[name];
+  const ns=o.normalScale??1, mo=Object.assign({roughness:1,metalness:0},o); delete mo.normalScale;
+  if(!set){
+    if(fallbackMap){mo.map=fallbackMap.clone();mo.map.needsUpdate=true;mo.map.repeat.set(rx,ry);}
+    if(mo.roughness===1)mo.roughness=.9;
+    return new THREE.MeshStandardMaterial(mo);
+  }
+  if(set.albedo)mo.map=texRepeat(set.albedo,rx,ry);
+  if(set.normal){mo.normalMap=texRepeat(set.normal,rx,ry);mo.normalScale=new THREE.Vector2(ns,ns);}
+  if(set.rough)mo.roughnessMap=texRepeat(set.rough,rx,ry);
+  return new THREE.MeshStandardMaterial(mo);
+}
+// dress an existing (glTF) material with a detail set, keeping its colour / metalness / clearcoat
+function detail(m,name,rep,ns=0.6,withRough=true){
+  const set=TSET[name]; if(!set)return;
+  if(set.normal){m.normalMap=texRepeat(set.normal,rep,rep);m.normalScale=new THREE.Vector2(ns,ns);}
+  if(withRough&&set.rough)m.roughnessMap=texRepeat(set.rough,rep,rep);
+  m.needsUpdate=true;
+}
+
 /* ---------------- MATERIAL HELPERS ---------------- */
 const MAT={
   paint:c=>new THREE.MeshStandardMaterial({color:c,metalness:.5,roughness:.32}),
@@ -404,11 +567,9 @@ function sph(r,mat,x,y,z,seg=18){
    WORLD BUILD
    ================================================================ */
 const worldGroup=new THREE.Group(); scene.add(worldGroup);
-function floorPlane(x,y,w,h,tex,texScale,yLift=0,col=0xffffff){
-  const t=tex.clone(); t.needsUpdate=true;
-  t.repeat.set(w/texScale,h/texScale);
+function floorPlane(x,y,w,h,set,fallback,texScale,yLift=0,col=0xffffff,ns=1){
   const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),
-    new THREE.MeshStandardMaterial({map:t,color:col,roughness:.92,metalness:0}));
+    pbr(set,w/texScale,h/texScale,{color:col,normalScale:ns},fallback));
   m.rotation.x=-Math.PI/2;
   m.position.set(x+w/2,yLift,y+h/2);
   m.receiveShadow=true;
@@ -416,30 +577,29 @@ function floorPlane(x,y,w,h,tex,texScale,yLift=0,col=0xffffff){
   return m;
 }
 function buildWorld(){
-  floorPlane(0,0,WORLD.w,WORLD.h,TEX.grass,180,-0.6);            // yard
-  floorPlane(40,40,1700,1680,TEX.wood,190,0);                    // house hardwood
-  floorPlane(940,40,760,820,TEX.tile,170,0.35);                  // kitchen
-  floorPlane(40,900,720,820,TEX.concrete,210,0.35);              // garage
-  floorPlane(800,900,450,820,TEX.carpet,150,0.35);               // bedroom
-  floorPlane(1290,900,410,820,TEX.bathTile,140,0.35);            // bathroom
-  floorPlane(1740,440,270,920,TEX.stone,160,0.3);                // patio
-  // living-room rug
-  const rug=new THREE.Mesh(new THREE.PlaneGeometry(420,360),
-    new THREE.MeshStandardMaterial({map:TEX.rug,roughness:.95}));
+  floorPlane(0,0,WORLD.w,WORLD.h,"grass",TEX.grass,150,-0.6,0xa6c874,0.8);   // yard
+  floorPlane(40,40,1700,1680,"wood",TEX.wood,130,0,0xe2c093);                 // house hardwood
+  floorPlane(940,40,760,820,"tile",TEX.tile,120,0.35);                        // kitchen
+  floorPlane(40,900,720,820,"concrete",TEX.concrete,170,0.35,0xcfccc6);       // garage
+  floorPlane(800,900,450,820,"carpet",TEX.carpet,90,0.35,0xb9b0c8,0.7);       // bedroom
+  floorPlane(1290,900,410,820,"bathTile",TEX.bathTile,110,0.35);              // bathroom
+  floorPlane(1740,440,270,920,"stone",TEX.stone,140,0.3,0xd6cec2);            // patio
+  // living-room rug (procedural pattern over the baked carpet weave)
+  const rugM=new THREE.MeshStandardMaterial({map:TEX.rug,roughness:.95});
+  if(TSET.carpet&&TSET.carpet.normal){rugM.normalMap=texRepeat(TSET.carpet.normal,5,4.3);rugM.normalScale=new THREE.Vector2(.7,.7);}
+  const rug=new THREE.Mesh(new THREE.PlaneGeometry(420,360),rugM);
   rug.rotation.x=-Math.PI/2; rug.position.set(390,0.8,420); rug.receiveShadow=true;
   worldGroup.add(rug);
 
   // walls — drywall sides with baseboards; plank texture for the yard fence
-  const wallSide=new THREE.MeshStandardMaterial({map:TEX.drywall,roughness:.92});
   const wallTop=MAT.matte(0xd8d2c2);
-  const fenceSide=new THREE.MeshStandardMaterial({map:TEX.fenceTex,roughness:.9});
   const fenceTop=MAT.matte(0x74593c);
+  const sideMat=(fence,len)=>fence
+    ?pbr("fence",Math.max(1,Math.round(len/110)),1,{color:0xffffff,normalScale:.8},TEX.fenceTex)
+    :pbr("drywall",Math.max(1,Math.round(len/110)),1,{color:0xe9e4d8,normalScale:.5},TEX.drywall);
   for(const w of WALLS){
-    const side=w.fence?fenceSide:wallSide, top=w.fence?fenceTop:wallTop;
-    const sideX=side.clone(); sideX.map=side.map.clone(); sideX.map.needsUpdate=true;
-    sideX.map.repeat.set(Math.max(1,Math.round(w.h/110)),1);
-    const sideZ=side.clone(); sideZ.map=side.map.clone(); sideZ.map.needsUpdate=true;
-    sideZ.map.repeat.set(Math.max(1,Math.round(w.w/110)),1);
+    const top=w.fence?fenceTop:wallTop;
+    const sideX=sideMat(w.fence,w.h), sideZ=sideMat(w.fence,w.w);
     const m=new THREE.Mesh(new THREE.BoxGeometry(w.w,WALL_H,w.h),
       [sideX,sideX,top,top,sideZ,sideZ]);
     m.position.set(w.x+w.w/2,WALL_H/2,w.y+w.h/2);
@@ -573,8 +733,8 @@ function buildPool(){
   worldGroup.add(box(4,14,h,wallM,x+w-2,-7,y+h/2,false));
   const t=TEX.water; t.repeat.set(3,2.4);
   waterMesh=new THREE.Mesh(new THREE.PlaneGeometry(w-4,h-4),
-    new THREE.MeshStandardMaterial({map:t,color:0xdff4ff,roughness:.15,metalness:.1,
-      transparent:true,opacity:.9}));
+    new THREE.MeshStandardMaterial({map:t,color:0x6fb4e6,roughness:.06,metalness:.25,
+      transparent:true,opacity:.86}));
   waterMesh.rotation.x=-Math.PI/2;
   waterMesh.position.set(x+w/2,-6,y+h/2);
   worldGroup.add(waterMesh);
@@ -620,8 +780,25 @@ const ASSET_TEMPLATES={};
 const PROP_TEMPLATES={};          // driverSeated / driverStanding / stick (kept in meters)
 const UNITS_PER_M=11.3;           // world units per meter for metric assets
 const WHEEL_TAGS=["frontLeft","frontRight","backLeft","backRight"];
+// detail texture per glTF material name (models are UV box-mapped at 1 tile / metre in Blender)
+const DETAIL=[
+  [/^carTire/,"rubber",5,0.7],[/^rubberTrim/,"rubber",6,0.4],[/^seatCloth/,"leather",3,0.6],
+  [/^canvas/,"canvas",4,0.7],[/^rim/,"alloy",2,0.35,false],[/^(paint|roof)/,"paintFlake",3,0.12,false],
+  [/^jersey|^shorts|^stripe/,"fabric",7,0.5],[/^skin/,"skin",4,0.35],[/^(gloves|pads)/,"leather",5,0.6],
+  [/^helmet/,"paintFlake",4,0.1,false],[/^pocket/,"leather",6,0.4],[/^net/,"fabric",10,0.4],
+];
+function detailMaterials(root){
+  const seen=new Set();
+  root.traverse(o=>{
+    if(!o.isMesh||!o.material||seen.has(o.material.uuid))return;
+    seen.add(o.material.uuid);
+    const n=o.material.name||"";
+    for(const [re,set,rep,ns,rough] of DETAIL){ if(re.test(n)){detail(o.material,set,rep,ns,rough!==false);break;} }
+  });
+}
 function normalizeProp(scene){
   scene.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
+  detailMaterials(scene);
   return scene;
 }
 // clone an asset and give it private, recolored materials for the names in `tints`
@@ -724,6 +901,7 @@ function normalizeVehicleModel(model){
       o.material.roughness=0.95;o.material.color.set(0x16181c);
     }
   });
+  detailMaterials(model);
   return wrap;
 }
 (function loadVehicleAssets(){
@@ -1365,13 +1543,20 @@ function updateCar(c,dt){
   if(c.stun>0){
     c.stun-=dt; c.spin+=dt*12;
   } else if(!c.isAI){
-    if(keys["w"]||keys["arrowup"])throttle=1;
-    if(TOUCH&&game.autoGas&&!(keys["s"]||keys["arrowdown"]))throttle=1;   // touch: auto-gas
-    if(keys["s"]||keys["arrowdown"])throttle=-0.6;
-    if(keys["a"]||keys["arrowleft"])steer=-1;
-    if(keys["d"]||keys["arrowright"])steer=1;
-    drift=keys["shift"];
-    if(keys[" "]||keys["x"])tryThrow(c);
+    // keyboard: digital keys eased into an analog steer so it feels like a stick
+    let kSteer=(keys["a"]||keys["arrowleft"]?-1:0)+(keys["d"]||keys["arrowright"]?1:0);
+    c.kSteer=lerp(c.kSteer||0,kSteer,Math.min(1,(kSteer?9:16)*dt));
+    let kThr=null;
+    if(keys["w"]||keys["arrowup"])kThr=1;
+    if(keys["s"]||keys["arrowdown"])kThr=-0.6;
+    // virtual joystick (touch) and gamepad
+    let jSteer=input.joyActive?input.steer:0, jThr=input.joyActive?input.throttle:null;
+    let gSteer=input.gp?input.gpSteer:0, gThr=input.gp?input.gpThrottle:null;
+    steer=clamp(c.kSteer+jSteer+gSteer,-1,1);
+    throttle=kThr!==null?kThr:(jThr!==null?jThr:(gThr!==null?gThr:0));
+    if(TOUCH&&game.autoGas&&throttle===0&&kThr===null&&gThr===null)throttle=1;   // touch: auto-gas unless braking
+    drift=!!(keys["shift"]||(input.gp&&input.gpDrift));
+    if(keys[" "]||keys["x"]||(input.gp&&input.gpThrowEdge))tryThrow(c);
   } else {
     const o=aiDrive(c,dt); throttle=o.throttle; steer=o.steer;
   }
@@ -1598,7 +1783,7 @@ function updateCamera(dt){
     camera.position.z+=rnd(-game.shake,game.shake)*0.6;
   }
   camera.lookAt(camLook);
-  sun.position.set(p.x+520,900,p.y+300);
+  sun.position.set(p.x+SUN_DIR.x*SUN_DIST,SUN_DIR.y*SUN_DIST,p.y+SUN_DIR.z*SUN_DIST);
   sun.target.position.set(p.x,0,p.y);
 }
 
@@ -1681,6 +1866,7 @@ function tick(now){
       $("countdown").classList.remove("active");
     }
   }
+  pollGamepad();
   if(game.phase==="race"&&!game.paused){
     game.timer-=dt;
     if(game.timer<=0){game.timer=0;endMatch(null,"FULL TIME");}
@@ -1726,7 +1912,8 @@ function tick(now){
     const pulse=1.1+0.5*Math.sin(now/180);
     for(const pm of padMeshes)pm.material.emissiveIntensity=pulse;
     updateHUD();
-    renderer.render(scene,camera);
+    if(skyDome)skyDome.position.set(camera.position.x,0,camera.position.z);
+    if(composer)composer.render(); else renderer.render(scene,camera);
   }
 }
 
@@ -1748,6 +1935,33 @@ function tick(now){
     const k=el.dataset.key;
     bind(el,()=>{keys[k]=true;},()=>{keys[k]=false;});
   });
+  // virtual analog stick: appears where the thumb lands, steers by x, brakes/reverses when pulled back
+  const zone=$("joyZone"), base=$("joyBase"), knob=$("joyKnob");
+  const R=58; let jid=null, ox=0, oy=0;
+  const setKnob=(dx,dy)=>{knob.style.transform=`translate(${dx}px,${dy}px)`;};
+  zone.addEventListener("pointerdown",e=>{
+    if(jid!==null)return; e.preventDefault();
+    jid=e.pointerId; ox=e.clientX; oy=e.clientY;
+    base.style.left=ox+"px"; base.style.top=oy+"px"; base.classList.add("on"); setKnob(0,0);
+    input.joyActive=true; input.steer=0; input.throttle=null;
+    try{zone.setPointerCapture(e.pointerId);}catch(_){}
+  });
+  zone.addEventListener("pointermove",e=>{
+    if(e.pointerId!==jid)return;
+    let dx=e.clientX-ox, dy=e.clientY-oy; const d=Math.hypot(dx,dy);
+    if(d>R){dx*=R/d;dy*=R/d;}
+    setKnob(dx,dy);
+    const nx=dx/R, ny=dy/R;                       // ny>0 = pulled back
+    const dzx=Math.abs(nx)<0.1?0:(nx-Math.sign(nx)*0.1)/0.9;
+    input.steer=clamp(dzx*1.15,-1,1);
+    input.throttle=ny>0.3?-0.6*Math.min(1,(ny-0.3)/0.7):(ny<-0.25?1:null);   // pull back = brake/reverse, push = gas
+  });
+  const joyEnd=e=>{
+    if(e.pointerId!==jid)return;
+    jid=null; base.classList.remove("on"); input.joyActive=false; input.steer=0; input.throttle=null;
+  };
+  zone.addEventListener("pointerup",joyEnd); zone.addEventListener("pointercancel",joyEnd); zone.addEventListener("lostpointercapture",joyEnd);
+  addEventListener("gamepadconnected",e=>{addMsg("🎮 "+(e.gamepad.id||"Gamepad").split("(")[0].trim()+" connected","#8fd3ff");});
   bind($("tThrow"),()=>{const p=game.cars[0];if(p&&game.phase==="race"&&!game.paused)tryThrow(p);},()=>{});
   $("tPause").addEventListener("pointerdown",e=>{e.preventDefault();togglePause();});
   // never let the page scroll/zoom under the game
