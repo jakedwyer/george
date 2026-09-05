@@ -60,19 +60,19 @@ const RARITY = {
   legendary:{label:"LEGENDARY", color:"#ffb300"},
 };
 const CARS = [
-  {id:"bronco96",  name:"'96 Ford Bronco XLT",     rarity:"common",  body:"#b71c1c", roof:"#eceff1", speed:.62,handling:.55,tough:.70, spare:true,  cab:"closed", round:false, asset:"suv"},
-  {id:"wranglerTJ",name:"Jeep Wrangler TJ",        rarity:"common",  body:"#2e7d32", roof:"#20262b", speed:.55,handling:.70,tough:.60, spare:true,  cab:"closed", round:true,  jeepGrille:true, asset:"suv"},
-  {id:"runner5g",  name:"Toyota 4Runner TRD Pro",  rarity:"common",  body:"#b0bec5", roof:"#aeb8bf", speed:.66,handling:.60,tough:.62, spare:false, cab:"closed", round:false, rack:true, asset:"suvLuxury"},
-  {id:"disco2",    name:"Land Rover Discovery II", rarity:"common",  body:"#1565c0", roof:"#e8eef5", speed:.60,handling:.58,tough:.72, spare:false, cab:"closed", round:false, rack:true, asset:"suvLuxury"},
-  {id:"cherokeeXJ",name:"Jeep Cherokee XJ",        rarity:"uncommon",body:"#6d1b2d", roof:"#5a1626", speed:.72,handling:.68,tough:.68, spare:false, cab:"closed", round:false, asset:"suv"},
-  {id:"bronco21",  name:"'21 Bronco Badlands",     rarity:"uncommon",body:"#7c8f7a", roof:"#22282e", speed:.76,handling:.66,tough:.70, spare:true,  cab:"closed", round:true,  asset:"suv"},
-  {id:"runner3g",  name:"'97 4Runner Limited",     rarity:"uncommon",body:"#33691e", roof:"#2c5a1a", speed:.70,handling:.74,tough:.66, spare:false, cab:"closed", round:false, rack:true, asset:"suvLuxury"},
-  {id:"defender90",name:"Land Rover Defender 90",  rarity:"rare",    body:"#f9a825", roof:"#f2f4f5", speed:.74,handling:.72,tough:.86, spare:true,  cab:"closed", round:true,  rack:true, snorkel:true, asset:"suv"},
-  {id:"willys",    name:"Willys CJ-5",             rarity:"rare",    body:"#556b2f", roof:null,      speed:.68,handling:.88,tough:.62, spare:true,  cab:"open",   round:true,  jeepGrille:true},
-  {id:"bronco66",  name:"'66 Bronco Half-Cab",     rarity:"epic",    body:"#81d4fa", roof:"#f4f6f7", speed:.86,handling:.82,tough:.75, spare:true,  cab:"half",   round:true,  asset:"truck"},
-  {id:"rangeclassic",name:"Range Rover Classic",   rarity:"epic",    body:"#1b4332", roof:"#25543f", speed:.90,handling:.76,tough:.85, spare:false, cab:"closed", round:false, rack:true, asset:"suvLuxury"},
+  {id:"bronco96",  name:"'96 Ford Bronco XLT",     rarity:"common",  body:"#b71c1c", roof:"#eceff1", speed:.62,handling:.55,tough:.70, spare:true,  cab:"closed", round:false, asset:"bronco96"},
+  {id:"wranglerTJ",name:"Jeep Wrangler TJ",        rarity:"common",  body:"#2e7d32", roof:"#20262b", speed:.55,handling:.70,tough:.60, spare:true,  cab:"closed", round:true,  jeepGrille:true, asset:"wranglerTJ"},
+  {id:"runner5g",  name:"Toyota 4Runner TRD Pro",  rarity:"common",  body:"#b0bec5", roof:"#aeb8bf", speed:.66,handling:.60,tough:.62, spare:false, cab:"closed", round:false, rack:true, asset:"runner5g"},
+  {id:"disco2",    name:"Land Rover Discovery II", rarity:"common",  body:"#1565c0", roof:"#e8eef5", speed:.60,handling:.58,tough:.72, spare:false, cab:"closed", round:false, rack:true, asset:"disco2"},
+  {id:"cherokeeXJ",name:"Jeep Cherokee XJ",        rarity:"uncommon",body:"#6d1b2d", roof:"#5a1626", speed:.72,handling:.68,tough:.68, spare:false, cab:"closed", round:false, asset:"cherokeeXJ"},
+  {id:"bronco21",  name:"'21 Bronco Badlands",     rarity:"uncommon",body:"#7c8f7a", roof:"#22282e", speed:.76,handling:.66,tough:.70, spare:true,  cab:"closed", round:true, asset:"bronco21"},
+  {id:"runner3g",  name:"'97 4Runner Limited",     rarity:"uncommon",body:"#33691e", roof:"#2c5a1a", speed:.70,handling:.74,tough:.66, spare:false, cab:"closed", round:false, rack:true, asset:"runner3g"},
+  {id:"defender90",name:"Land Rover Defender 90",  rarity:"rare",    body:"#f9a825", roof:"#f2f4f5", speed:.74,handling:.72,tough:.86, spare:true,  cab:"closed", round:true,  rack:true, snorkel:true, asset:"defender90"},
+  {id:"willys",    name:"Willys CJ-5",             rarity:"rare",    body:"#556b2f", roof:null,      speed:.68,handling:.88,tough:.62, spare:true,  cab:"open",   round:true,  jeepGrille:true, asset:"willys"},
+  {id:"bronco66",  name:"'66 Bronco Half-Cab",     rarity:"epic",    body:"#81d4fa", roof:"#f4f6f7", speed:.86,handling:.82,tough:.75, spare:true,  cab:"half",   round:true, asset:"bronco66"},
+  {id:"rangeclassic",name:"Range Rover Classic",   rarity:"epic",    body:"#1b4332", roof:"#25543f", speed:.90,handling:.76,tough:.85, spare:false, cab:"closed", round:false, rack:true, asset:"rangeclassic"},
   {id:"runner85",  name:"'85 4Runner SR5 Soft Top",rarity:"legendary",body:"#d2b48c",roof:null,      speed:.95,handling:.92,tough:.90, spare:true,  cab:"soft",   round:false,
-    special:"Sunset Special — starts the match at Stick 3", onlyOne:true},
+    special:"Sunset Special — starts the match at Stick 3", onlyOne:true, asset:"runner85"},
 ];
 
 /* ---------------- WORLD LAYOUT (plan units) ---------------- */
@@ -164,6 +164,13 @@ function engineTick(speed,on){
 
 /* ---------------- INPUT ---------------- */
 const keys={};
+const TOUCH=(matchMedia&&matchMedia("(pointer: coarse)").matches)||("ontouchstart" in window)||navigator.maxTouchPoints>0;
+const MOBILE=TOUCH&&Math.min(screen.width,screen.height)<=1024;   // phones + iPads: lighter render tier
+if(TOUCH)document.body.classList.add("touch");
+function updateOrientation(){
+  document.body.classList.toggle("portrait",TOUCH&&innerHeight>innerWidth);
+}
+updateOrientation();
 addEventListener("keydown",e=>{
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key))e.preventDefault();
   keys[e.key.toLowerCase()]=true;
@@ -174,7 +181,8 @@ addEventListener("keydown",e=>{
 });
 addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;});
 const raycaster=new THREE.Raycaster(), groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
-addEventListener("mousedown",e=>{
+addEventListener("touchstart",()=>{audio();ensureEngine();},{passive:true});
+addEventListener("pointerdown",e=>{
   audio(); ensureEngine();
   if(game.phase==="race"&&!game.paused&&e.target.id==="game"){
     const p=game.cars[0]; if(!p||p.stun>0)return;
@@ -192,8 +200,8 @@ addEventListener("mousedown",e=>{
    ================================================================ */
 const FAST=/[?&]fast/.test(location.search);   // low-fx mode for weak hardware / CI
 const canvas=document.getElementById("game");
-const renderer=new THREE.WebGLRenderer({canvas,antialias:!FAST});
-renderer.setPixelRatio(FAST?0.6:Math.min(devicePixelRatio,2));
+const renderer=new THREE.WebGLRenderer({canvas,antialias:!FAST,powerPreference:"high-performance"});
+renderer.setPixelRatio(FAST?0.6:Math.min(devicePixelRatio,MOBILE?1.5:2));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=!FAST;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -212,7 +220,7 @@ const camLook=new THREE.Vector3(1280,0,880);
 
 const sun=new THREE.DirectionalLight(0xffedd2,3.4);
 sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);
+sun.shadow.mapSize.set(MOBILE?1024:2048,MOBILE?1024:2048);
 sun.shadow.camera.left=-750; sun.shadow.camera.right=750;
 sun.shadow.camera.top=750; sun.shadow.camera.bottom=-750;
 sun.shadow.camera.near=200; sun.shadow.camera.far=3200;
@@ -236,11 +244,15 @@ scene.add(new THREE.HemisphereLight(0xbdd8ff,0x6b7f62,0.38));
   pmrem.dispose();
 }
 
-addEventListener("resize",()=>{
+function onResize(){
   renderer.setSize(innerWidth,innerHeight);
   camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
-});
+  updateOrientation();
+}
+addEventListener("resize",onResize);
+addEventListener("orientationchange",()=>{setTimeout(onResize,250);});
+if(window.visualViewport)visualViewport.addEventListener("resize",onResize);
 
 /* ---------------- PROCEDURAL TEXTURES ---------------- */
 function canvasTex(size,draw){
@@ -605,7 +617,27 @@ buildWorld();
    one-of-a-kind open-tops.
    ================================================================ */
 const ASSET_TEMPLATES={};
+const PROP_TEMPLATES={};          // driverSeated / driverStanding / stick (kept in meters)
+const UNITS_PER_M=11.3;           // world units per meter for metric assets
 const WHEEL_TAGS=["frontLeft","frontRight","backLeft","backRight"];
+function normalizeProp(scene){
+  scene.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
+  return scene;
+}
+// clone an asset and give it private, recolored materials for the names in `tints`
+function tintClone(template,tints){
+  const c=template.clone(true);
+  c.traverse(o=>{
+    if(!o.isMesh||!o.material)return;
+    for(const [re,color] of tints){
+      if(re.test(o.material.name||"")){
+        o.material=o.material.clone(); o.material.color.set(color); break;
+      }
+    }
+  });
+  return c;
+}
+function driverTints(p){ return [[/^jersey/,p.jersey],[/^helmet/,p.color],[/^skin/,p.skin]]; }
 function normalizeVehicleModel(model){
   model.updateMatrixWorld(true);
   // re-center wheel pivots (some kit meshes are baked at the model origin)
@@ -613,7 +645,7 @@ function normalizeVehicleModel(model){
   for(const tag of WHEEL_TAGS){
     let node=null;
     const re=new RegExp("^wheel_"+tag);   // loader strips dots: wheel_backLeft.009 -> wheel_backLeft009
-    model.traverse(o=>{if(!node&&re.test(o.name))node=o;});
+    model.traverse(o=>{if(!node&&re.test(o.name)&&(o.parent===model||o.parent.type==="Scene"||o.parent===model.parent))node=o;});
     if(!node)continue;
     const box=new THREE.Box3().setFromObject(node);
     if(box.isEmpty())continue;
@@ -655,9 +687,12 @@ function normalizeVehicleModel(model){
     model.rotation.y+=Math.PI;
     wrap.updateMatrixWorld(true);
   }
-  // uniform scale to the game's vehicle length, grounded at y=0, centered
+  // scale: metric models (built in Blender, meters) use a fixed units-per-meter so a
+  // Willys really is shorter than a Range Rover; anything else is normalized to length 52
   let bb=new THREE.Box3().setFromObject(wrap);
-  const s=52/(bb.max.x-bb.min.x);
+  const rawLen=bb.max.x-bb.min.x;
+  const metric=rawLen<8;
+  const s=metric?UNITS_PER_M:52/rawLen;
   model.scale.setScalar(s);
   model.position.set(0,0,0);
   wrap.updateMatrixWorld(true);
@@ -667,6 +702,12 @@ function normalizeVehicleModel(model){
   wrap.updateMatrixWorld(true);
   bb=new THREE.Box3().setFromObject(wrap);
   wrap.userData.dims={h:bb.max.y,w:bb.max.z-bb.min.z};
+  wrap.userData.metric=metric;
+  const seat=model.getObjectByName("seat"), mount=model.getObjectByName("stickMount");
+  wrap.userData.seat=seat?seat.position.clone():null;
+  wrap.userData.stickMount=mount?mount.position.clone():null;
+  if(seat)seat.visible=false; if(mount)mount.visible=false;
+  wrap.userData.model=model;
   // shared material prep (paint is cloned per instance later)
   model.traverse(o=>{
     if(!o.isMesh||!o.material)return;
@@ -691,8 +732,11 @@ function normalizeVehicleModel(model){
   let pending=Object.keys(window.LAXFOO_MODELS).length;
   for(const [key,uri] of Object.entries(window.LAXFOO_MODELS)){
     loader.load(uri,gltf=>{
-      try{ ASSET_TEMPLATES[key]=normalizeVehicleModel(gltf.scene); }
-      catch(e){ console.warn("vehicle asset failed:",key,e); }
+      try{
+        if(/^(driver|stick)/.test(key))PROP_TEMPLATES[key]=normalizeProp(gltf.scene);
+        else ASSET_TEMPLATES[key]=normalizeVehicleModel(gltf.scene);
+      }
+      catch(e){ console.warn("asset failed:",key,e); }
       if(--pending===0&&pPrev)updatePreviews();
     },undefined,err=>{ console.warn("vehicle asset load error:",key,err); pending--; });
   }
@@ -702,17 +746,18 @@ function buildVehicleFromAsset(def,playerDef){
   if(!T)return null;
   const g=new THREE.Group();
   const body=new THREE.Group(); g.add(body);
-  const model=T.clone(true);
-  body.add(model);
+  const wrapClone=T.clone(true);
+  body.add(wrapClone);
+  const model=wrapClone.children[0];
   const wheels=[];
-  model.traverse(o=>{
-    if(o.isMesh&&o.material&&/^paint/.test(o.material.name||"")){
-      o.material=o.material.clone();
-      o.material.color.set(def.body);
-      o.material.metalness=0.5;o.material.roughness=0.3;
+  wrapClone.traverse(o=>{
+    if(o.isMesh&&o.material){
+      const n=o.material.name||"";
+      if(/^paint/.test(n)){o.material=o.material.clone();o.material.color.set(def.body);o.material.metalness=0.55;o.material.roughness=0.3;}
+      else if(/^roof/.test(n)&&def.roof){o.material=o.material.clone();o.material.color.set(def.roof);}
     }
     for(const tag of WHEEL_TAGS){
-      if(new RegExp("^wheel_"+tag).test(o.name)){
+      if(new RegExp("^wheel_"+tag).test(o.name)&&o.parent===model){
         wheels.push({front:tag.startsWith("front"),
           spin:r=>{o.rotation.x-=r;},
           steer:v=>{o.rotation.y=-v;}});
@@ -722,25 +767,38 @@ function buildVehicleFromAsset(def,playerDef){
     if(o.name==="wheel_back"&&!def.spare)o.visible=false;
   });
   const D=T.userData.dims;
-  if(def.rack){
-    body.add(box(18,1.5,2,MAT.metal(0x788088),-5,D.h+0.8,6.5));
-    body.add(box(18,1.5,2,MAT.metal(0x788088),-5,D.h+0.8,-6.5));
-    body.add(box(2,1.2,15,MAT.metal(0x788088),-13,D.h+0.8,0));
-    body.add(box(2,1.2,15,MAT.metal(0x788088),3,D.h+0.8,0));
+  if(!T.userData.metric){
+    // generic (non-Blender) asset: bolt on procedural accessories
+    if(def.rack){
+      body.add(box(18,1.5,2,MAT.metal(0x788088),-5,D.h+0.8,6.5));
+      body.add(box(18,1.5,2,MAT.metal(0x788088),-5,D.h+0.8,-6.5));
+    }
+    if(def.snorkel){
+      body.add(box(2,12,2,MAT.matte(0x23272c),9,D.h-9,D.w/2-0.6));
+    }
   }
-  if(def.snorkel){
-    body.add(box(2,12,2,MAT.matte(0x23272c),9,D.h-9,D.w/2-0.6));
-    body.add(box(4,2,2,MAT.matte(0x23272c),11,D.h-3,D.w/2-0.6));
+  // driver + crosse: Blender props placed at the rig's seat / stickMount markers (meters, inside the model)
+  const seatP=T.userData.seat, mountP=T.userData.stickMount;
+  if(PROP_TEMPLATES.driverSeated&&seatP){
+    const d=tintClone(PROP_TEMPLATES.driverSeated,driverTints(playerDef));
+    d.position.set(seatP.x,seatP.y-0.55,seatP.z);
+    model.add(d);
+  } else {
+    const driver=buildFigure(playerDef,{seated:true});
+    driver.position.set(0,D.h*0.30,-4.5); driver.scale.setScalar(0.92);
+    body.add(driver);
   }
-  // driver behind the (now translucent) glass
-  const driver=buildFigure(playerDef,{seated:true});
-  driver.position.set(0,D.h*0.30,-4.5);
-  driver.scale.setScalar(0.92);
-  body.add(driver);
-  const stick=buildStick(playerDef);
-  stick.position.set(2,D.h*0.60,D.w/2-1.5);
-  stick.rotation.set(-0.28,0.42,-0.12);
-  body.add(stick);
+  if(PROP_TEMPLATES.stick&&mountP){
+    const st=tintClone(PROP_TEMPLATES.stick,[[/^pocket/,playerDef.color]]);
+    st.position.copy(mountP);
+    st.rotation.order="YXZ"; st.rotation.set(-Math.PI/2+0.22,-0.38,0);
+    model.add(st);
+  } else {
+    const stick=buildStick(playerDef);
+    stick.position.set(2,D.h*0.60,D.w/2-1.5);
+    stick.rotation.set(-0.28,0.42,-0.12);
+    body.add(stick);
+  }
   return {group:g,body,wheels};
 }
 function buildWheel(r){
@@ -960,6 +1018,7 @@ const game={
   cars:[], balls:[], groundBalls:[], particles:[],
   shake:0, timer:180, countT:0, gbTimer:0, cdOrbit:0,
   selPlayer:0, selCar:0, winner:null,
+  autoGas:true,
 };
 const dynamic=new THREE.Group(); scene.add(dynamic);
 
@@ -991,6 +1050,7 @@ function showScreen(name){
   Object.values(screens).forEach(s=>s.classList.remove("active"));
   if(name&&screens[name])screens[name].classList.add("active");
   $("hud").classList.toggle("active",!name||name==="pause");
+  $("touchUI").classList.toggle("active",TOUCH&&(!name));
 }
 function buildMenus(){
   $("playerGrid").innerHTML=PLAYERS.map((p,i)=>`
@@ -1063,7 +1123,7 @@ function togglePause(){
 /* ---------------- 3D PREVIEWS ---------------- */
 function makePreview(canvasEl){
   const r=new THREE.WebGLRenderer({canvas:canvasEl,antialias:true,alpha:true});
-  r.setPixelRatio(Math.min(devicePixelRatio,2));
+  r.setPixelRatio(Math.min(devicePixelRatio,MOBILE?1.5:2));
   r.outputColorSpace=THREE.SRGBColorSpace;
   r.toneMapping=THREE.ACESFilmicToneMapping;
   r.shadowMap.enabled=true; r.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -1072,9 +1132,10 @@ function makePreview(canvasEl){
   const cam=new THREE.PerspectiveCamera(38,canvasEl.width/canvasEl.height,1,600);
   const key=new THREE.DirectionalLight(0xfff1dc,3.2); key.position.set(80,120,60);
   key.castShadow=true; key.shadow.mapSize.set(1024,1024);
+  key.shadow.normalBias=1.4; key.shadow.bias=-0.0004;
   key.shadow.camera.left=-70;key.shadow.camera.right=70;key.shadow.camera.top=70;key.shadow.camera.bottom=-70;
   s.add(key);
-  s.add(new THREE.HemisphereLight(0xbdd8ff,0x44403a,0.7));
+  s.add(new THREE.HemisphereLight(0xbdd8ff,0x44403a,0.9));
   s.environment=scene.environment;
   const ped=new THREE.Mesh(new THREE.CylinderGeometry(42,46,5,40),
     new THREE.MeshStandardMaterial({color:0x232d40,roughness:.4,metalness:.5}));
@@ -1089,13 +1150,26 @@ function updatePreviews(){
   if(!pPrev){pPrev=makePreview($("playerPrev"));cPrev=makePreview($("carPrev"));}
   // player figure
   pPrev.holder.clear();
-  const fig=buildFigure(PLAYERS[game.selPlayer],{seated:false});
-  fig.position.y=4; fig.scale.setScalar(2.4);
-  const st=buildStick(PLAYERS[game.selPlayer],true);
-  st.position.set(3.4,-4.6,5.2); st.scale.setScalar(0.62);
-  fig.add(st);
-  pPrev.holder.add(fig);
-  pPrev.cam.position.set(86,50,86); pPrev.cam.lookAt(0,22,0);
+  const P=PLAYERS[game.selPlayer];
+  if(PROP_TEMPLATES.driverStanding){
+    const S=30;   // preview units per meter
+    const fig=tintClone(PROP_TEMPLATES.driverStanding,driverTints(P));
+    fig.scale.setScalar(S); fig.rotation.y=Math.PI*0.85;
+    pPrev.holder.add(fig);
+    if(PROP_TEMPLATES.stick){
+      const st=tintClone(PROP_TEMPLATES.stick,[[/^pocket/,P.color]]);
+      st.scale.setScalar(S); st.position.set(-0.30*S,0,0.16*S); st.rotation.z=0.12;
+      pPrev.holder.add(st);
+    }
+  } else {
+    const fig=buildFigure(P,{seated:false});
+    fig.position.y=4; fig.scale.setScalar(2.4);
+    const st=buildStick(P,true);
+    st.position.set(3.4,-4.6,5.2); st.scale.setScalar(0.62);
+    fig.add(st);
+    pPrev.holder.add(fig);
+  }
+  pPrev.cam.position.set(86,52,86); pPrev.cam.lookAt(0,26,0);
   // car
   cPrev.holder.clear();
   const v=buildVehicle(CARS[game.selCar],PLAYERS[game.selPlayer]);
@@ -1292,6 +1366,7 @@ function updateCar(c,dt){
     c.stun-=dt; c.spin+=dt*12;
   } else if(!c.isAI){
     if(keys["w"]||keys["arrowup"])throttle=1;
+    if(TOUCH&&game.autoGas&&!(keys["s"]||keys["arrowdown"]))throttle=1;   // touch: auto-gas
     if(keys["s"]||keys["arrowdown"])throttle=-0.6;
     if(keys["a"]||keys["arrowleft"])steer=-1;
     if(keys["d"]||keys["arrowright"])steer=1;
@@ -1507,8 +1582,8 @@ function updateCamera(dt){
     lx=p.x; ly=18; lz=p.y;
   } else {
     const hx=Math.cos(p.a),hy=Math.sin(p.a);
-    dx=p.x-hx*128; dz=p.y-hy*128; dy=82;
-    lx=p.x+hx*55; ly=14; lz=p.y+hy*55;
+    dx=p.x-hx*112; dz=p.y-hy*112; dy=72;
+    lx=p.x+hx*50; ly=13; lz=p.y+hy*50;
   }
   const k=Math.min(1,4.5*dt);
   camera.position.x=lerp(camera.position.x,dx,k);
@@ -1654,6 +1729,33 @@ function tick(now){
     renderer.render(scene,camera);
   }
 }
+
+/* ---------------- TOUCH CONTROLS ---------------- */
+(function setupTouchUI(){
+  if(!TOUCH)return;
+  document.querySelectorAll(".touchOnly").forEach(el=>el.style.display="");
+  const bind=(el,down,up)=>{
+    const active=new Set();
+    const on=e=>{e.preventDefault();active.add(e.pointerId);el.classList.add("on");down(e);
+      try{el.setPointerCapture(e.pointerId);}catch(_){}};
+    const off=e=>{active.delete(e.pointerId);if(active.size===0){el.classList.remove("on");up(e);}};
+    el.addEventListener("pointerdown",on);
+    el.addEventListener("pointerup",off);el.addEventListener("pointercancel",off);
+    el.addEventListener("lostpointercapture",off);
+    el.addEventListener("contextmenu",e=>e.preventDefault());
+  };
+  document.querySelectorAll("#touchUI .tbtn[data-key]").forEach(el=>{
+    const k=el.dataset.key;
+    bind(el,()=>{keys[k]=true;},()=>{keys[k]=false;});
+  });
+  bind($("tThrow"),()=>{const p=game.cars[0];if(p&&game.phase==="race"&&!game.paused)tryThrow(p);},()=>{});
+  $("tPause").addEventListener("pointerdown",e=>{e.preventDefault();togglePause();});
+  // never let the page scroll/zoom under the game
+  document.addEventListener("touchmove",e=>{if($("hud").classList.contains("active"))e.preventDefault();},{passive:false});
+  document.addEventListener("gesturestart",e=>e.preventDefault());
+  let lastTap=0;
+  document.addEventListener("touchend",e=>{const t=Date.now();if(t-lastTap<300)e.preventDefault();lastTap=t;},{passive:false});
+})();
 
 /* ---------------- BOOT ---------------- */
 buildMenus();
