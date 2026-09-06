@@ -83,6 +83,34 @@ pip install bpy                       # Blender as a Python module
 ./tools/optimize_models.sh            # models -> assets/models.js ; bakes + sky -> assets/textures.js
 ```
 
+## Built for a nine-year-old
+
+**Easy mode** is on by default (toggle on the title screen or in the pause menu):
+
+- **Auto-gas.** The car is always rolling; you only steer and throw. Hold ▼ / `S` to brake.
+- **Smart steering.** The game gently eases you toward the racing line, firmly if you drift
+  toward a wall or end up facing backwards (a **WRONG WAY** nudge turns you around). Your own
+  steering always wins when you push.
+- Gentler shoulders, softer wall bumps, and rivals who hold back when they get ahead.
+
+Steering is Minecraft-style on touch: **touch anywhere on the track and drag sideways** to
+turn; the buttons (◀ ▶ ▲ ▼) work too, and a plain tap on the track throws at that spot.
+
+## Power-ups
+
+Spinning **?** boxes sit along the lap. Drive through one and you're holding a power-up:
+tap the glowing box in the HUD, press `E`, or hit **X** on a gamepad to use it.
+
+| Power-up | What it does |
+|---|---|
+| ⭐ **Star Power** | Can't be plunked for 8 s, and bumping a rival spins them out. |
+| 🚀 **Rocket Boost** | Way faster for 5 s, with flames. |
+| 🛞 **Sticky Tires** | Turns on a dime and never slows off the racing line, 10 s. |
+| 🥍 **Hop Out & Swing** | Park, the driver hops out and whacks every rig within reach. |
+| 🌪️ **Ball Storm** | Six balls at once, no waiting for the boomerang. |
+
+The AI grabs and uses them too.
+
 ## The rules
 
 - **Three laps, first across the line wins.** Positions and lap counts are live in the HUD.
@@ -138,6 +166,8 @@ real players.
 | Touch: ◀ ▶ ▲ ▼ buttons | Steer, gas, reverse (or a virtual joystick, from the pause menu) |
 | Gamepad left stick + triggers | Steer / gas / brake |
 | `Space` / `X` / gamepad **A** | Throw (with gentle aim assist) |
+| `E` / tap the HUD box / gamepad **X** | Use the held power-up |
+| Touch: drag anywhere on the track | Minecraft-style steering |
 | Mouse click / tap the field | Aimed throw at the cursor |
 | `Shift` / gamepad **B** | Drift |
 | `P` / `Esc` / **Start** | Pause |
