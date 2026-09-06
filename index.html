@@ -91,6 +91,10 @@
     transition:width .3s}
   #timer{top:calc(14px + var(--sat));left:50%;transform:translateX(-50%);padding:6px 22px;font-size:28px;color:#fff}
   #timer.hot{color:#ff5252}
+  #posPanel{top:calc(62px + var(--sat));left:50%;transform:translateX(-50%);padding:4px 18px 6px;font-size:34px;color:#eaf2ff;line-height:1}
+  #posPanel .of{font-size:14px;color:#8fa4c4;margin-left:6px}
+  #posPanel.first{color:#ffd54f;border-color:#ffb300}
+  .teamHdr{grid-column:1/-1;font-size:12px;letter-spacing:2px;color:#8fd3ff;margin:6px 0 -4px;text-transform:uppercase}
   #standings{top:calc(14px + var(--sat));right:calc(14px + var(--sar));padding:10px 14px;min-width:190px}
   #standings .lab{font-size:11px;color:#8fd3ff;letter-spacing:1px;margin-bottom:5px}
   #standings .srow{display:flex;align-items:center;gap:7px;font-size:13px;margin:4px 0;color:#c8d5e8}
@@ -136,7 +140,14 @@
     font-family:Verdana,Arial,sans-serif;font-size:11px;color:rgba(200,215,240,.7);letter-spacing:1px}
   #tThrow{right:calc(18px + var(--sar));bottom:calc(18px + var(--sab));
     background:radial-gradient(circle at 35% 30%,rgba(255,196,80,.85),rgba(255,120,0,.75));border-color:#ffd54f;color:#2a1600}
-  #tBrake{right:calc(134px + var(--sar));bottom:calc(22px + var(--sab))}
+  .tbtn.dp{width:70px;height:70px;font-size:26px;flex-direction:column;gap:0}
+  .tbtn.dp .ico{font-size:24px;line-height:1} .tbtn.dp .lbl{font-size:9px;letter-spacing:1.5px}
+  #tLeft{left:calc(14px + var(--sal));bottom:calc(16px + var(--sab))}
+  #tRight{left:calc(98px + var(--sal));bottom:calc(16px + var(--sab))}
+  #tGas{right:calc(136px + var(--sar));bottom:calc(16px + var(--sab))}
+  #tRev{right:calc(136px + var(--sar));bottom:calc(100px + var(--sab))}
+  #touchUI.scheme-dpad #joyZone,#touchUI.scheme-dpad #joyHint{display:none}
+  #touchUI.scheme-stick .tbtn.dp{display:none}
   #tDrift{right:calc(30px + var(--sar));bottom:calc(136px + var(--sab))}
   #tPause{position:absolute;pointer-events:auto;top:calc(12px + var(--sat));left:calc(50% + 78px);width:40px;height:40px;
     border-radius:10px;background:rgba(8,13,24,.72);border:1.5px solid rgba(140,170,215,.25);color:#dfe9f7;
@@ -153,6 +164,7 @@
     #stickPanel .lab{font-size:10px} #stickPanel .snm{font-size:14px;margin:1px 0 5px}
     #stickBarWrap{height:7px}
     #timer{font-size:20px;padding:4px 14px}
+    #posPanel{top:calc(50px + var(--sat));font-size:24px;padding:3px 12px 4px}
     #standings{min-width:150px;padding:7px 10px}
     #standings .lab{font-size:9px} #standings .srow{font-size:11px;margin:3px 0}
     #ammoRow{bottom:auto;top:calc(88px + var(--sat));padding:7px 10px;gap:6px}
@@ -189,19 +201,23 @@
     <div class="snm" id="stickName">Splintered Loaner</div>
     <div id="stickBarWrap"><div id="stickBar"></div></div>
   </div>
-  <div class="hpanel" id="timer">3:00</div>
-  <div class="hpanel" id="standings"><div class="lab">RACE TO STICK 50</div><div id="standRows"></div></div>
+  <div class="hpanel" id="timer">LAP 1/3</div>
+  <div class="hpanel" id="posPanel"><span id="posTxt">4th</span><span class="of">/ 4</span></div>
+  <div class="hpanel" id="standings"><div class="lab">POSITIONS</div><div id="standRows"></div></div>
   <div class="hpanel" id="ammoRow"></div>
-  <div class="hpanel" id="minimapBox"><canvas id="minimap" width="200" height="138"></canvas></div>
+  <div class="hpanel" id="minimapBox"><canvas id="minimap" width="200" height="144"></canvas></div>
   <div id="msgs"></div>
-  <div id="countdown"><div id="cdNum">3</div><div id="cdSub">Race to Stick 50 — plunk 'em to level up!</div></div>
+  <div id="countdown"><div id="cdNum">3</div><div id="cdSub">3 laps of the Home Circuit — plunk 'em to level up!</div></div>
 </div>
 
 <div id="touchUI">
   <div id="joyZone"><div id="joyBase"><div id="joyKnob"></div></div></div>
   <div id="joyHint">◎ DRAG TO STEER · PULL BACK TO BRAKE</div>
+  <div class="tbtn dp" id="tLeft" data-key="a">◀</div>
+  <div class="tbtn dp" id="tRight" data-key="d">▶</div>
+  <div class="tbtn dp" id="tGas" data-key="w"><span class="ico">▲</span><span class="lbl">GAS</span></div>
+  <div class="tbtn dp" id="tRev" data-key="s"><span class="ico">▼</span><span class="lbl">REV</span></div>
   <div class="tbtn lg" id="tThrow"><span class="ico">🥍</span>THROW</div>
-  <div class="tbtn sm" id="tBrake" data-key="s">BRAKE</div>
   <div class="tbtn sm" id="tDrift" data-key="shift">DRIFT</div>
   <div id="tPause">❚❚</div>
 </div>
@@ -210,15 +226,16 @@
 
 <div id="titleScreen" class="screen active">
   <h1 class="logo">LAXFOO<span>R A C I N G</span></h1>
-  <p class="tag">Grab a 4WD rig, load your crosse, and brawl through the biggest house match ever thrown.
-    Every player you plunk with a lacrosse ball levels you up the ladder of <b>50 sticks</b>.
-    First driver to run the rack to <b>Stick 50</b> — or hold the best stick when the clock dies — wins.</p>
+  <p class="tag">Grab a 4WD rig, load your crosse, and race <b>3 laps of the Home Circuit</b> — a track that
+    tears through the garage, bedroom, backyard, kitchen and living room. Every rival you plunk with a
+    lacrosse ball spins out and levels you up the ladder of <b>50 sticks</b>: faster throws, more balls, more top end.
+    First across the line wins.</p>
   <button class="bigbtn" id="btnStart">PICK YOUR PLAYER</button>
   <div class="controls">
     <b>W A S D</b> / <b>ARROWS</b> drive &nbsp; <b>SPACE</b> throw &nbsp; <b>SHIFT</b> drift &nbsp; <b>P</b> pause &nbsp; <b>🎮</b> gamepad
   </div>
   <p class="hint">Balls fly boomerang-style — they curve back to your stick. Miss a catch? Ground ball. Ground balls win games.</p>
-  <p class="hint touchOnly" style="display:none">On touch: drag the left side of the screen like a joystick to steer (pull back to brake), tap 🥍 THROW or tap the field to aim a throw. Gamepads work too.</p>
+  <p class="hint touchOnly" style="display:none">On touch: ◀ ▶ steer, ▲ gas, ▼ reverse, tap 🥍 THROW or tap the track to aim a throw. Prefer a joystick? Switch in the pause menu. Gamepads work too.</p>
 </div>
 
 <div id="playerScreen" class="screen">
@@ -276,6 +293,7 @@
   </div>
   <div class="row">
     <button class="bigbtn" id="btnResume">RESUME</button>
+    <button class="bigbtn alt touchOnly" id="btnScheme" style="display:none">TOUCH CONTROLS: BUTTONS</button>
     <button class="bigbtn alt" id="btnQuit">QUIT TO TITLE</button>
   </div>
 </div>

@@ -1,12 +1,13 @@
 # Publishes the game to GitHub Pages: https://jakedwyer.github.io/george/
 # The site is fully static (index.html + vendored three.js + embedded assets), so the whole
-# repo root is uploaded as-is. Runs on pushes to main and to the active feature branch, or by hand.
+# repo root is uploaded as-is. Runs on pushes to main, or by hand. Only main may deploy: the
+# github-pages environment rejects other branches, so feature branches never trigger this.
 # The deploy only runs once Pages is switched on for the repo (Settings > Pages > Source:
 # "GitHub Actions"); until then the workflow skips it with a warning instead of failing.
 name: Deploy to GitHub Pages
 on:
   push:
-    branches: [main, claude/laxfoo-racing-game-adxym3]
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

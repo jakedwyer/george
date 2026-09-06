@@ -1,8 +1,8 @@
 # 🥍 LaxFoo Racing
 
-**Boomerang Foo × lacrosse × Mario Kart.** A free-for-all arena brawler where four drivers
-in 4WD SUVs tear through the biggest house match ever thrown, plunking each other with
-lacrosse balls to climb the ladder of **50 sticks**.
+**Boomerang Foo × lacrosse × Mario Kart.** Four drivers in 4WD SUVs race three laps of the
+**Home Circuit**, a kart track that tears through a house and its backyard, plunking each
+other with lacrosse balls to spin rivals out and climb the ladder of **50 sticks**.
 
 ## Play it
 
@@ -29,12 +29,12 @@ Blender** (see below). On weak hardware, add `?fast` to the URL for a low-fx mod
 ### iPhone & iPad
 
 Works in Safari on iOS/iPadOS and can be added to the home screen as a full-screen app
-(Share → Add to Home Screen). Play in landscape. Touch controls: a **virtual joystick** —
-touch anywhere on the left half of the screen and drag: left/right steers proportionally,
-push up for full gas, pull back to brake or reverse (auto-gas keeps you rolling when the
-stick is centered) — plus a big 🥍 **THROW** button (or tap anywhere on the field to aim a
-throw), **BRAKE**, **DRIFT**, and an on-screen pause. The HUD respects the notch /
-home-indicator safe areas and the renderer drops to a lighter tier on mobile GPUs.
+(Share → Add to Home Screen). Play in landscape. Touch controls are **buttons**: ◀ ▶ to
+steer on the left, ▲ GAS and ▼ REV on the right, a big 🥍 **THROW** button (or tap anywhere
+on the track to aim a throw), **DRIFT**, and an on-screen pause. Prefer a stick? The pause
+menu switches to a **virtual joystick** (drag anywhere on the left half of the screen;
+auto-gas keeps you rolling). The HUD respects the notch / home-indicator safe areas and the
+renderer drops to a lighter tier on mobile GPUs.
 
 ### Gamepad
 
@@ -85,20 +85,26 @@ pip install bpy                       # Blender as a Python module
 
 ## The rules
 
-- Every driver starts at **Stick 1** of 50. Hit somebody with a lacrosse ball and you're
-  handed the next, better stick — faster throws, longer range, bigger balls, more balls in
-  the pocket, and eventually multishot.
+- **Three laps, first across the line wins.** Positions and lap counts are live in the HUD.
+- Every driver starts at **Stick 1** of 50. Hit somebody with a lacrosse ball and they spin
+  out while you're handed the next, better stick — faster throws, longer range, bigger
+  balls, more balls in the pocket, eventually multishot — plus a burst of speed. Every
+  stick level also adds a little top end.
 - Get plunked and you drop a stick level (and cough up a ball).
 - Balls fly **boomerang-style**: they curve back to your crosse for the catch. Miss it and
-  it's a **ground ball** — drive over loose balls to reload. Ground balls win games.
-- First to run the rack to **Stick 50** wins instantly. Otherwise, best stick at full
-  time (3:00) takes it.
+  it's a **ground ball**. Loose balls sit in item-box spots along the track and get pulled
+  into your crosse when you drive near them.
+- Stay on the racing surface: the curbed shoulders are slow, and the walls hurt.
 
-## The arena
+## The track
 
-Somebody's house. Living room, kitchen, garage, bedroom, bath — plus a backyard with a
-pool (swampy), a trampoline (bouncy), and boost pads through the hallways for full
-send-it Mario Kart energy.
+The **Home Circuit**: a closed spline loop through six rooms, each with its own baked floor
+and wall style. The lap runs the garage start/finish straight (concrete), the bedroom
+(carpet), a long sweeper through the backyard around the pool (patio stone, picket fence),
+the kitchen (tile), a living-room S-bend (hardwood), and the hallway back to the line.
+Boost pads sit on the straights and corner exits. The road, curbs, shoulders and walls are
+all generated from the spline at load time; furniture, trees, pool and trampoline dress the
+sides.
 
 ## The garage
 
@@ -116,16 +122,20 @@ Rarer rigs run hotter stats. CPUs can never take the '85 — if you don't drive 
 
 ## The crosse-players
 
-Eight players, each with a perk: rifle-arm throw speed, ground-ball vacuum, stun
-resistance, top-speed motor, throw range, heavy hits, quick-stick reload, or late-apex
-handling.
+Two rosters, grouped by team on the select screen: the **Cannons** (Marcus Holman, Asher
+Nolting, Matt Campbell, Colin Kirst, Owen Grant) and **Carnegie Mellon** (Colin
+Schallenberg, Xander Dixon, and a walk-on). Each has a perk — rifle-arm throw speed,
+throw range, top-speed motor, ground-ball vacuum, heavy hits, quick-stick reload, late-apex
+handling, stun resistance. The roster is the `PLAYERS` list at the top of `js/game.js`;
+names, teams and perks are plain data. The perks are game bonuses, not statements about the
+real players.
 
 ## Controls
 
 | Input | Action |
 |---|---|
 | `WASD` / arrows | Drive (eased, joystick-like steering) |
-| Touch: drag on the left half | Virtual joystick — steer, push for gas, pull to brake |
+| Touch: ◀ ▶ ▲ ▼ buttons | Steer, gas, reverse (or a virtual joystick, from the pause menu) |
 | Gamepad left stick + triggers | Steer / gas / brake |
 | `Space` / `X` / gamepad **A** | Throw (with gentle aim assist) |
 | Mouse click / tap the field | Aimed throw at the cursor |

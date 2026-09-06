@@ -40,15 +40,17 @@ function stickStats(lv){
 }
 
 /* ---------------- CROSSE-PLAYERS ---------------- */
+// One entry per crosse-player. Edit names / teams here; perks are game bonuses only.
+const SKIN="#e0a87e";
 const PLAYERS = [
-  {name:'"Brine" McCallister', pos:"Attack",  color:"#ff5252", skin:"#e8b48c", jersey:"#b71c1c", perk:"Rifle Arm — +12% throw speed",     mod:{throw:1.12}},
-  {name:"Dusty Powell",        pos:"FOGO",    color:"#ffca28", skin:"#f2c9a0", jersey:"#8d6e63", perk:"Vacuum — bigger ground-ball scoop", mod:{scoop:1.6}},
-  {name:'Mo "The Wall" Okafor',pos:"Goalie",  color:"#66bb6a", skin:"#7a4b2a", jersey:"#1b5e20", perk:"Iron Ribs — 30% shorter stuns",     mod:{stun:0.7}},
-  {name:"Cricket Lavelle",     pos:"Middie",  color:"#4fc3f7", skin:"#e0a87e", jersey:"#0277bd", perk:"Motor — +8% top speed",             mod:{speed:1.08}},
-  {name:"Shep Winthrop III",   pos:"Attack",  color:"#ba68c8", skin:"#f4d3ad", jersey:"#4a148c", perk:"Old Money — +15% throw range",      mod:{range:1.15}},
-  {name:"Tank Kowalski",       pos:"Defense", color:"#8d6e63", skin:"#e6b892", jersey:"#3e2723", perk:"Lumber — victims stunned longer",   mod:{bigHit:1.35}},
-  {name:"Juju Saint-Pierre",   pos:"Middie",  color:"#f06292", skin:"#8c5a33", jersey:"#ad1457", perk:"Quick Stick — 15% faster reload",   mod:{cool:0.85}},
-  {name:'Ricky "Wheels" Sato', pos:"LSM",     color:"#26c6da", skin:"#ecc094", jersey:"#00838f", perk:"Late Apex — +10% handling",         mod:{handling:1.10}},
+  {name:"Marcus Holman",      team:"Cannons",         pos:"Attack",  color:"#ff5252", skin:SKIN, jersey:"#c8102e", perk:"Rifle Arm — +12% throw speed",     mod:{throw:1.12}},
+  {name:"Asher Nolting",      team:"Cannons",         pos:"Attack",  color:"#ffca28", skin:SKIN, jersey:"#c8102e", perk:"Cannon Arm — +15% throw range",     mod:{range:1.15}},
+  {name:"Matt Campbell",      team:"Cannons",         pos:"Midfield",color:"#4fc3f7", skin:SKIN, jersey:"#c8102e", perk:"Motor — +8% top speed",             mod:{speed:1.08}},
+  {name:"Colin Kirst",        team:"Cannons",         pos:"Goalie",  color:"#66bb6a", skin:SKIN, jersey:"#c8102e", perk:"Vacuum — bigger ground-ball scoop", mod:{scoop:1.6}},
+  {name:"Owen Grant",         team:"Cannons",         pos:"Defense", color:"#8d6e63", skin:SKIN, jersey:"#c8102e", perk:"Lumber — victims stunned longer",   mod:{bigHit:1.35}},
+  {name:"Colin Schallenberg", team:"Carnegie Mellon", pos:"",        color:"#ba68c8", skin:SKIN, jersey:"#a6192e", perk:"Quick Stick — 15% faster reload",   mod:{cool:0.85}},
+  {name:"Xander Dixon",       team:"Carnegie Mellon", pos:"",        color:"#26c6da", skin:SKIN, jersey:"#a6192e", perk:"Late Apex — +10% handling",         mod:{handling:1.10}},
+  {name:"Tartan Walk-On",     team:"Carnegie Mellon", pos:"",        color:"#f06292", skin:SKIN, jersey:"#a6192e", perk:"Iron Ribs — 30% shorter stuns",     mod:{stun:0.7}},
 ];
 
 /* ---------------- THE GARAGE ---------------- */
@@ -75,52 +77,88 @@ const CARS = [
     special:"Sunset Special — starts the match at Stick 3", onlyOne:true, asset:"runner85"},
 ];
 
-/* ---------------- WORLD LAYOUT (plan units) ---------------- */
-const WORLD = {w:2560, h:1760};
-const WALL_H = 64;
-const WALLS = [
-  {x:0,y:0,w:2560,h:40,fence:true},{x:0,y:1720,w:2560,h:40,fence:true},
-  {x:0,y:0,w:40,h:1760,fence:true},{x:2520,y:0,w:40,h:1760,fence:true},
-  {x:1700,y:40,w:40,h:460},{x:1700,y:700,w:40,h:400},{x:1700,y:1300,w:40,h:420},
-  {x:40,y:860,w:260,h:40},{x:500,y:860,w:500,h:40},{x:1200,y:860,w:540,h:40},
-  {x:900,y:40,w:40,h:310},{x:900,y:550,w:40,h:310},
-  {x:760,y:900,w:40,h:250},{x:760,y:1350,w:40,h:370},
-  {x:1250,y:900,w:40,h:550},{x:1250,y:1650,w:40,h:70},
+/* ---------------- THE TRACK: "HOME CIRCUIT" (plan units) ---------------- */
+const WORLD = {w:3200, h:2300};
+const LAPS = 3;
+const TRACK_W = 250, SHOULDER = 55, WALL_OFF = TRACK_W/2 + SHOULDER;   // road ±125, walls at ±180
+// centreline of the loop (closed Catmull-Rom spline). A lap runs garage -> bedroom -> backyard
+// (around the pool) -> kitchen -> living-room S-bend -> hallway -> finish line.
+const TRACK_CTRL = [[1000,1950],[1600,1930],[2100,1880],[2600,1750],[2900,1350],[2850,900],[2550,600],[2100,400],
+                    [1650,470],[1380,700],[1180,980],[850,1120],[540,1260],[370,1520],[450,1820],[700,1950]];
+const ZONES = [   // control-point ranges -> floor texture + wall style
+  {name:"garage",      from:0,  to:1,  set:"concrete", col:0xcfccc6, tile:170, wall:"house"},
+  {name:"bedroom",     from:1,  to:2,  set:"carpet",   col:0xb9b0c8, tile:90,  wall:"house"},
+  {name:"backyard",    from:2,  to:7,  set:"stone",    col:0xd6cec2, tile:140, wall:"fence"},
+  {name:"kitchen",     from:7,  to:9,  set:"tile",     col:0xffffff, tile:120, wall:"house"},
+  {name:"living room", from:9,  to:12, set:"wood",     col:0xe2c093, tile:130, wall:"house"},
+  {name:"hallway",     from:12, to:16, set:"wood",     col:0xd9b88b, tile:130, wall:"house"},
 ];
-const FURNITURE = [
-  {x:140,y:290,w:300,h:100, kind:"couch"},
-  {x:220,y:450,w:170,h:80,  kind:"table"},
-  {x:48, y:330,w:26, h:200, kind:"tv"},
-  {x:560,y:160,w:100,h:100, kind:"chair"},
-  {x:280,y:48, w:260,h:42,  kind:"shelf"},
-  {x:940,y:48, w:480,h:56,  kind:"counter"},
-  {x:1600,y:56,w:92, h:120, kind:"fridge"},
-  {x:1120,y:320,w:300,h:130,kind:"island"},
-  {x:1420,y:600,w:200,h:120,kind:"table"},
-  {x:48,y:1620,w:300,h:60,  kind:"workbench"},
-  {x:48,y:940,w:80,h:130,   kind:"tools"},
-  {x:640,y:1600,w:80,h:80,  kind:"tires"},
-  {x:830,y:1470,w:240,h:200,kind:"bed"},
-  {x:1160,y:940,w:60,h:160, kind:"dresser"},
-  {x:1330,y:1580,w:300,h:100,kind:"tub"},
-  {x:1640,y:940,w:50,h:60,  kind:"toilet"},
-  {x:1440,y:940,w:90,h:50,  kind:"sink"},
-  {x:2430,y:760,w:60,h:100, kind:"bbq"},
-  {x:1830,y:860,w:110,h:110,kind:"patio"},
+const WALL_H = 46, FENCE_H = 40;
+const WALLS = [   // the yard fence around the lot; the track walls are generated from the spline
+  {x:0,y:0,w:WORLD.w,h:40,fence:true},{x:0,y:WORLD.h-40,w:WORLD.w,h:40,fence:true},
+  {x:0,y:0,w:40,h:WORLD.h,fence:true},{x:WORLD.w-40,y:0,w:40,h:WORLD.h,fence:true},
 ];
-const TREES = [ {x:2000,y:160,r:42}, {x:1830,y:1610,r:40}, {x:2350,y:120,r:38} ];
-const POOL = {x:2060,y:260,w:380,h:300};
-const TRAMPOLINE = {x:2200,y:1430,r:110};
-const PADS = [
-  {x:330,y:940,w:140,h:140, ang:-Math.PI/2},
-  {x:1030,y:660,w:140,h:140,ang: Math.PI/2},
-  {x:1760,y:530,w:150,h:140,ang: 0},
-  {x:2040,y:1160,w:160,h:140,ang: Math.PI},
+const TRACK = {pts:[], N:0, len:0, ctrlS:[]};
+(function buildTrackSamples(){
+  const P=TRACK_CTRL, n=P.length, raw=[], cs=[];
+  const cr=(p0,p1,p2,p3,t)=>{const t2=t*t,t3=t2*t;return [0,1].map(i=>0.5*((2*p1[i])+(-p0[i]+p2[i])*t+(2*p0[i]-5*p1[i]+4*p2[i]-p3[i])*t2+(-p0[i]+3*p1[i]-3*p2[i]+p3[i])*t3));};
+  for(let k=0;k<n;k++){
+    const p0=P[(k-1+n)%n],p1=P[k],p2=P[(k+1)%n],p3=P[(k+2)%n];
+    cs.push(raw.length);
+    for(let j=0;j<24;j++)raw.push(cr(p0,p1,p2,p3,j/24));
+  }
+  const L=[0]; for(let i=1;i<=raw.length;i++){const a=raw[i-1],b=raw[i%raw.length];L.push(L[i-1]+Math.hypot(b[0]-a[0],b[1]-a[1]));}
+  const total=L[raw.length], N=600; let j=0;
+  for(let i=0;i<N;i++){
+    const d=total*i/N; while(L[j+1]<d)j++;
+    const a=raw[j],b=raw[(j+1)%raw.length],t=(d-L[j])/(L[j+1]-L[j]);
+    TRACK.pts.push({x:a[0]+(b[0]-a[0])*t,y:a[1]+(b[1]-a[1])*t,s:i/N});
+  }
+  for(let i=0;i<N;i++){
+    const p=TRACK.pts[i],q=TRACK.pts[(i+1)%N],o=TRACK.pts[(i-1+N)%N];
+    let dx=q.x-o.x,dy=q.y-o.y; const l=Math.hypot(dx,dy)||1; dx/=l;dy/=l;
+    p.dx=dx;p.dy=dy;p.nx=-dy;p.ny=dx;          // nx,ny = right-hand side of the direction of travel
+  }
+  TRACK.len=total; TRACK.N=N; TRACK.ctrlS=cs.map(ci=>L[ci]/total);
+})();
+function trackPt(s){ const N=TRACK.N; return TRACK.pts[Math.floor((((s%1)+1)%1)*N)%N]; }
+function trackAt(s,lat){ const p=trackPt(s); return {x:p.x+p.nx*lat,y:p.y+p.ny*lat,a:Math.atan2(p.dy,p.dx)}; }
+// nearest centreline sample to (x,y); searches near `hint` when given, everywhere otherwise
+function trackNearest(x,y,hint){
+  const N=TRACK.N,pts=TRACK.pts; let best=0,bd=1e18;
+  const scan=(i0,i1)=>{for(let k=i0;k<=i1;k++){const i=((k%N)+N)%N,p=pts[i],d=(p.x-x)*(p.x-x)+(p.y-y)*(p.y-y);if(d<bd){bd=d;best=i;}}};
+  if(hint===undefined||hint<0)scan(0,N-1); else {scan(hint-40,hint+40); if(bd>300*300)scan(0,N-1);}
+  return best;
+}
+function trackLat(x,y,i){ const p=TRACK.pts[i]; return (x-p.x)*p.nx+(y-p.y)*p.ny; }   // signed: right of travel = +
+// keep a circle of radius r inside the track walls; returns the wall normal it hit (or null)
+function trackContain(o,r,bounce){
+  o.ti=trackNearest(o.x,o.y,o.ti);
+  const tp=TRACK.pts[o.ti], lat=trackLat(o.x,o.y,o.ti), lim=WALL_OFF-r+2;
+  if(Math.abs(lat)<=lim)return null;
+  const sg=Math.sign(lat), over=Math.abs(lat)-lim, nx=tp.nx*sg, ny=tp.ny*sg;
+  o.x-=nx*over; o.y-=ny*over;
+  const vn=o.vx*nx+o.vy*ny;
+  if(vn>0){o.vx-=vn*nx*bounce;o.vy-=vn*ny*bounce;}
+  return {nx,ny,vn};
+}
+// scenery just outside the walls: (lap fraction, side) with side -1 = left of travel, +1 = right
+const PROPS = [
+  {s:0.02,side:-1,kind:"workbench",w:300,h:60}, {s:0.05,side:+1,kind:"tools",w:80,h:130}, {s:0.075,side:-1,kind:"tires",w:80,h:80},
+  {s:0.12,side:-1,kind:"bed",w:240,h:200}, {s:0.16,side:+1,kind:"dresser",w:60,h:160}, {s:0.19,side:-1,kind:"tub",w:300,h:100},
+  {s:0.31,side:-1,kind:"bbq",w:60,h:100}, {s:0.40,side:-1,kind:"patio",w:110,h:110},
+  {s:0.52,side:-1,kind:"fridge",w:92,h:120}, {s:0.55,side:-1,kind:"counter",w:480,h:56}, {s:0.585,side:+1,kind:"island",w:300,h:130},
+  {s:0.66,side:+1,kind:"couch",w:300,h:100}, {s:0.69,side:-1,kind:"tv",w:26,h:200}, {s:0.725,side:+1,kind:"table",w:170,h:80},
+  {s:0.78,side:-1,kind:"shelf",w:260,h:42}, {s:0.86,side:+1,kind:"dresser",w:60,h:160}, {s:0.92,side:-1,kind:"chair",w:100,h:100},
 ];
-const GB_SPOTS = [[700,700],[1600,780],[600,1000],[1000,1050],[2250,700],[1900,1450],
-                  [450,400],[1350,780],[1150,1600],[2350,1620],[1470,1150],[250,700]];
-const SPAWNS = [ {x:360,y:1450,a:-Math.PI/2}, {x:1550,y:180,a:Math.PI/2},
-                 {x:2260,y:860,a:Math.PI},    {x:200,y:200,a:0} ];
+const TREES = [ {x:2350,y:1350,r:42}, {x:1500,y:1350,r:40}, {x:700,y:600,r:44}, {x:2900,y:2050,r:38}, {x:200,y:2050,r:36}, {x:1700,y:1300,r:36} ];
+const POOL = {x:2150,y:950,w:300,h:220};
+const TRAMPOLINE = {x:2350,y:1600,r:100};
+const PADS = [{s:0.14,lat:0},{s:0.46,lat:0},{s:0.62,lat:-40},{s:0.83,lat:30}].map(p=>{const t=trackAt(p.s,p.lat);return {x:t.x,y:t.y,ang:t.a,r:62};});
+// ground-ball "item box" spots along the lap
+const GB_SPOTS = [0.08,0.18,0.27,0.36,0.44,0.54,0.63,0.72,0.81,0.9].map((s,i)=>{const t=trackAt(s,[-55,0,55][i%3]);return [t.x,t.y];});
+// starting grid, two by two just behind the line; index 0 is the human (back of the grid)
+const SPAWNS = [0.966,0.974,0.982,0.990].map((s,i)=>trackAt(s,i%2?45:-45));
 
 /* ---------------- AUDIO ---------------- */
 let AC=null, engineNodes=null;
@@ -482,6 +520,7 @@ const TEX={
     }
   }),
 };
+TEX.checker=canvasTex(64,(c,s)=>{for(let y=0;y<8;y++)for(let x=0;x<8;x++){c.fillStyle=(x+y)%2?"#141414":"#f4f4f4";c.fillRect(x*8,y*8,8,8);}});
 TEX.arrow.colorSpace=THREE.SRGBColorSpace;
 
 /* ---------------- BAKED PBR TEXTURE SETS (Blender/Cycles, see tools/blender_textures.py) ---------------- */
@@ -576,40 +615,88 @@ function floorPlane(x,y,w,h,set,fallback,texScale,yLift=0,col=0xffffff,ns=1){
   worldGroup.add(m);
   return m;
 }
-function buildWorld(){
-  floorPlane(0,0,WORLD.w,WORLD.h,"grass",TEX.grass,150,-0.6,0xa6c874,0.8);   // yard
-  floorPlane(40,40,1700,1680,"wood",TEX.wood,130,0,0xe2c093);                 // house hardwood
-  floorPlane(940,40,760,820,"tile",TEX.tile,120,0.35);                        // kitchen
-  floorPlane(40,900,720,820,"concrete",TEX.concrete,170,0.35,0xcfccc6);       // garage
-  floorPlane(800,900,450,820,"carpet",TEX.carpet,90,0.35,0xb9b0c8,0.7);       // bedroom
-  floorPlane(1290,900,410,820,"bathTile",TEX.bathTile,110,0.35);              // bathroom
-  floorPlane(1740,440,270,920,"stone",TEX.stone,140,0.3,0xd6cec2);            // patio
-  // living-room rug (procedural pattern over the baked carpet weave)
-  const rugM=new THREE.MeshStandardMaterial({map:TEX.rug,roughness:.95});
-  if(TSET.carpet&&TSET.carpet.normal){rugM.normalMap=texRepeat(TSET.carpet.normal,5,4.3);rugM.normalScale=new THREE.Vector2(.7,.7);}
-  const rug=new THREE.Mesh(new THREE.PlaneGeometry(420,360),rugM);
-  rug.rotation.x=-Math.PI/2; rug.position.set(390,0.8,420); rug.receiveShadow=true;
-  worldGroup.add(rug);
-
-  // walls — drywall sides with baseboards; plank texture for the yard fence
-  const wallTop=MAT.matte(0xd8d2c2);
-  const fenceTop=MAT.matte(0x74593c);
-  const sideMat=(fence,len)=>fence
-    ?pbr("fence",Math.max(1,Math.round(len/110)),1,{color:0xffffff,normalScale:.8},TEX.fenceTex)
-    :pbr("drywall",Math.max(1,Math.round(len/110)),1,{color:0xe9e4d8,normalScale:.5},TEX.drywall);
-  for(const w of WALLS){
-    const top=w.fence?fenceTop:wallTop;
-    const sideX=sideMat(w.fence,w.h), sideZ=sideMat(w.fence,w.w);
-    const m=new THREE.Mesh(new THREE.BoxGeometry(w.w,WALL_H,w.h),
-      [sideX,sideX,top,top,sideZ,sideZ]);
-    m.position.set(w.x+w.w/2,WALL_H/2,w.y+w.h/2);
-    m.castShadow=true;m.receiveShadow=true;
-    worldGroup.add(m);
-    worldGroup.add(box(w.w+3,3,w.h+3,MAT.matte(w.fence?0x74593c:0xcfc8b8),
-      w.x+w.w/2,WALL_H+1.5,w.y+w.h/2));
+// a strip along the track between lateral offsets latA..latB (right = +), from sample i0 to i1 (inclusive)
+function trackStrip(i0,i1,latA,latB,y,tile,colorFn){
+  const N=TRACK.N, count=(((i1-i0)%N)+N)%N||N, pos=[],uv=[],col=[],idx=[];
+  for(let k=0;k<=count;k++){
+    const p=TRACK.pts[(i0+k)%N], arc=k*TRACK.len/N, u=arc/tile;
+    pos.push(p.x+p.nx*latA,y,p.y+p.ny*latA, p.x+p.nx*latB,y,p.y+p.ny*latB);
+    uv.push(u,latA/tile, u,latB/tile);
+    if(colorFn){const c=colorFn(arc);col.push(c.r,c.g,c.b,c.r,c.g,c.b);}
+    if(k<count){const b=k*2;idx.push(b,b+1,b+2, b+1,b+3,b+2);}
   }
-
-  for(const f of FURNITURE)worldGroup.add(buildFurniture(f));
+  const g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2));
+  if(colorFn)g.setAttribute("color",new THREE.Float32BufferAttribute(col,3));
+  g.setIndex(idx); g.computeVertexNormals();
+  if(g.attributes.normal.getY(0)<0){ const ix=g.index.array; for(let k=0;k<ix.length;k+=3){const t=ix[k+1];ix[k+1]=ix[k+2];ix[k+2]=t;} g.computeVertexNormals(); }
+  return g;
+}
+// a wall ribbon standing at lateral offset `lat`, `thick` units deep outward, `h` tall
+function trackWall(i0,i1,lat,thick,h,tile){
+  const N=TRACK.N, count=(((i1-i0)%N)+N)%N||N, sg=Math.sign(lat), pos=[],uv=[];
+  const quad=(a,b,c,d,u0,u1,v1)=>{pos.push(...a,...b,...c, ...a,...c,...d); uv.push(u0,0,u1,0,u1,v1, u0,0,u1,v1,u0,v1);};
+  for(let k=0;k<count;k++){
+    const p=TRACK.pts[(i0+k)%N],q=TRACK.pts[(i0+k+1)%N], u0=k*TRACK.len/N/tile, u1=(k+1)*TRACK.len/N/tile;
+    const pi=[p.x+p.nx*lat,0,p.y+p.ny*lat], qi=[q.x+q.nx*lat,0,q.y+q.ny*lat];
+    const po=[p.x+p.nx*(lat+sg*thick),0,p.y+p.ny*(lat+sg*thick)], qo=[q.x+q.nx*(lat+sg*thick),0,q.y+q.ny*(lat+sg*thick)];
+    const up=v=>[v[0],h,v[2]];
+    quad(pi,qi,up(qi),up(pi),u0,u1,h/tile);          // face toward the road
+    quad(up(pi),up(qi),up(qo),up(po),u0,u1,thick/tile); // top
+    quad(po,qo,up(qo),up(po),u0,u1,h/tile);          // outer face
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute("uv",new THREE.Float32BufferAttribute(uv,2));
+  g.computeVertexNormals();
+  return g;
+}
+function buildTrack(){
+  const N=TRACK.N, idx=v=>Math.floor(v*N)%N;
+  const curbMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.65});
+  const red=new THREE.Color(0xc62828), white=new THREE.Color(0xf5f5f5);
+  const curbCol=arc=>Math.floor(arc/60)%2?red:white;
+  for(const z of ZONES){
+    const i0=idx(TRACK.ctrlS[z.from]), i1=z.to>=TRACK_CTRL.length?N:idx(TRACK.ctrlS[z.to]);
+    const road=new THREE.Mesh(trackStrip(i0,i1,-TRACK_W/2,TRACK_W/2,0.4,z.tile),pbr(z.set,1,1,{color:z.col},TEX[z.set]));
+    road.receiveShadow=true; worldGroup.add(road);
+    const shCol=new THREE.Color(z.col).multiplyScalar(0.72).getHex();
+    for(const sg of [-1,1]){
+      const sh=new THREE.Mesh(trackStrip(i0,i1,sg*(TRACK_W/2+14),sg*WALL_OFF,0.3,z.tile),pbr(z.set,1,1,{color:shCol},TEX[z.set]));
+      sh.receiveShadow=true; worldGroup.add(sh);
+      const curb=new THREE.Mesh(trackStrip(i0,i1,sg*TRACK_W/2,sg*(TRACK_W/2+14),0.9,60,curbCol),curbMat);
+      curb.receiveShadow=true; worldGroup.add(curb);
+      const wallMat=z.wall==="fence"
+        ?pbr("fence",1,1,{color:0xffffff,normalScale:.8,side:THREE.DoubleSide},TEX.fenceTex)
+        :pbr("drywall",1,1,{color:0xe9e4d8,normalScale:.5,side:THREE.DoubleSide},TEX.drywall);
+      const wall=new THREE.Mesh(trackWall(i0,i1,sg*WALL_OFF,22,z.wall==="fence"?FENCE_H:WALL_H,110),wallMat);
+      wall.castShadow=true; wall.receiveShadow=true; worldGroup.add(wall);
+    }
+  }
+  // start / finish line
+  const line=new THREE.Mesh(trackStrip(N-1,2,-TRACK_W/2,TRACK_W/2,1.3,22),new THREE.MeshStandardMaterial({map:TEX.checker,roughness:.7}));
+  line.receiveShadow=true; worldGroup.add(line);
+}
+function buildProp(f){
+  const p=trackPt(f.s), a=Math.atan2(p.dy,p.dx);
+  const g=buildFurniture({x:-f.w/2,y:-f.h/2,w:f.w,h:f.h,kind:f.kind});
+  const off=WALL_OFF+22+14+f.h/2;
+  g.position.set(p.x+p.nx*f.side*off,0,p.y+p.ny*f.side*off);
+  g.rotation.y=-a+(f.side>0?Math.PI:0);
+  return g;
+}
+function buildWorld(){
+  floorPlane(0,0,WORLD.w,WORLD.h,"grass",TEX.grass,150,-0.6,0xa6c874,0.8);   // the lot
+  const fenceTop=MAT.matte(0x74593c);
+  for(const w of WALLS){
+    const sideX=pbr("fence",Math.max(1,Math.round(w.h/110)),1,{color:0xffffff,normalScale:.8},TEX.fenceTex);
+    const sideZ=pbr("fence",Math.max(1,Math.round(w.w/110)),1,{color:0xffffff,normalScale:.8},TEX.fenceTex);
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w.w,FENCE_H,w.h),[sideX,sideX,fenceTop,fenceTop,sideZ,sideZ]);
+    m.position.set(w.x+w.w/2,FENCE_H/2,w.y+w.h/2); m.castShadow=true;m.receiveShadow=true; worldGroup.add(m);
+  }
+  buildTrack();
+  for(const f of PROPS)worldGroup.add(buildProp(f));
   for(const t of TREES)worldGroup.add(buildTree(t));
   buildPool(); buildTrampoline(); buildPads();
 }
@@ -755,17 +842,16 @@ function buildTrampoline(){
 const padMeshes=[];
 function buildPads(){
   for(const p of PADS){
-    const m=new THREE.Mesh(new THREE.PlaneGeometry(p.w*0.9,p.h*0.9),
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(p.r*1.8,p.r*1.8),
       new THREE.MeshStandardMaterial({map:TEX.arrow,transparent:true,
         emissive:0xffa000,emissiveMap:TEX.arrow,emissiveIntensity:1.4,
         color:0xffc966,roughness:.6}));
-    m.rotation.x=-Math.PI/2;
-    m.rotation.z=-p.ang-Math.PI/2;
-    m.position.set(p.x+p.w/2,1.2,p.y+p.h/2);
+    m.rotation.x=-Math.PI/2; m.rotation.z=-p.ang-Math.PI/2;
+    m.position.set(p.x,1.6,p.y);
     worldGroup.add(m); padMeshes.push(m);
-    const base=new THREE.Mesh(new THREE.PlaneGeometry(p.w,p.h),
+    const base=new THREE.Mesh(new THREE.CircleGeometry(p.r,28),
       new THREE.MeshStandardMaterial({color:0x2b2f36,roughness:.9}));
-    base.rotation.x=-Math.PI/2; base.position.set(p.x+p.w/2,0.9,p.y+p.h/2);
+    base.rotation.x=-Math.PI/2; base.position.set(p.x,1.1,p.y);
     base.receiveShadow=true; worldGroup.add(base);
   }
 }
@@ -1194,7 +1280,7 @@ function buildFigure(p,{seated}){
 const game={
   phase:"title", paused:false,
   cars:[], balls:[], groundBalls:[], particles:[],
-  shake:0, timer:180, countT:0, gbTimer:0, cdOrbit:0,
+  shake:0, raceT:0, finishCount:0, countT:0, gbTimer:0, cdOrbit:0,
   selPlayer:0, selCar:0, winner:null,
   autoGas:true,
 };
@@ -1231,11 +1317,12 @@ function showScreen(name){
   $("touchUI").classList.toggle("active",TOUCH&&(!name));
 }
 function buildMenus(){
-  $("playerGrid").innerHTML=PLAYERS.map((p,i)=>`
+  const teams=[...new Set(PLAYERS.map(p=>p.team))];
+  $("playerGrid").innerHTML=teams.map(t=>`<div class="teamHdr">${t}</div>`+PLAYERS.map((p,i)=>p.team!==t?"":`
     <div class="card" data-i="${i}">
       <div class="nm"><span class="swatch" style="background:${p.color}"></span>${p.name}</div>
-      <div class="sub">${p.pos}</div>
-    </div>`).join("");
+      <div class="sub">${p.pos||t}</div>
+    </div>`).join("")).join("");
   $("carGrid").innerHTML=CARS.map((c,i)=>`
     <div class="card ${c.rarity==="legendary"?"legend":""}" data-i="${i}">
       <span class="rar ${c.rarity}">${RARITY[c.rarity].label}</span>
@@ -1251,7 +1338,7 @@ function refreshSel(){
   $("carGrid").querySelectorAll(".card").forEach(el=>el.classList.toggle("sel",+el.dataset.i===game.selCar));
   const P=PLAYERS[game.selPlayer], C=CARS[game.selCar];
   $("pPrevName").textContent=P.name;
-  $("pPrevPos").textContent=P.pos;
+  $("pPrevPos").textContent=[P.pos,P.team].filter(Boolean).join(" · ");
   $("pPrevPerk").textContent="★ "+P.perk;
   $("cPrevName").textContent=C.name;
   $("cPrevSub").textContent="4WD"+(C.cab!=="closed"?" · open top":"")+(C.spare?" · rear spare":"");
@@ -1371,7 +1458,8 @@ function makeCar(playerIdx,carIdx,spawn,isAI){
     h:0, hv:0, steerVis:0,
     stick:st, ammo:stickStats(st).carry, cool:0,
     stun:0, invuln:0, spin:0, boostGlow:0, trampCool:0,
-    hits:0, ai:{target:null,unstick:0,rev:0,turn:0,thinkT:0},
+    hits:0, ai:{target:null,unstick:0,rev:0,turn:0,thinkT:0,lane:rnd(-50,50)},
+    ti:-1, s:0, dist:0, lapDone:-1, finished:false, place:0, finishT:0, onShoulder:false,
   };
 }
 function ballMesh(r,ground){
@@ -1381,8 +1469,8 @@ function ballMesh(r,ground){
   return m;
 }
 function makeGroundBall(x,y,vx,vy){
-  const g={x,y,vx:vx||rnd(-60,60),vy:vy||rnd(-60,60),r:8,mesh:ballMesh(8,true),ring:null};
-  const ring=new THREE.Mesh(new THREE.TorusGeometry(14,1.2,6,24),MAT.emis(0xfdd835,1.1));
+  const g={x,y,vx:vx||rnd(-60,60),vy:vy||rnd(-60,60),r:10,ti:-1,mesh:ballMesh(10,true),ring:null};
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(20,1.6,6,28),MAT.emis(0xfdd835,1.3));
   ring.rotation.x=Math.PI/2;
   g.ring=ring;
   g.mesh.add(ring); ring.position.y=-4;
@@ -1401,9 +1489,10 @@ function startMatch(){
     const ci=cPool2.splice(Math.floor(Math.random()*cPool2.length),1)[0];
     cars.push(makeCar(pi,ci,SPAWNS[k],true));
   }
+  for(const c of cars){ c.ti=trackNearest(c.x,c.y); c.s=TRACK.pts[c.ti].s; c.dist=c.s-1; }
   game.cars=cars; game.balls=[]; game.msgs=[];
-  game.groundBalls=GB_SPOTS.slice(0,8).map(([x,y])=>makeGroundBall(x,y,0,0));
-  game.timer=180; game.countT=3.6; game.gbTimer=0; game.winner=null;
+  game.groundBalls=GB_SPOTS.map(([x,y])=>makeGroundBall(x,y,0,0));
+  game.raceT=0; game.finishCount=0; game.countT=3.6; game.gbTimer=0; game.winner=null;
   game.shake=0; game.paused=false; game.cdOrbit=0;
   game.phase="countdown";
   $("msgs").innerHTML="";
@@ -1430,7 +1519,7 @@ function circleRectPush(cx,cy,r,rc){
   const d=Math.sqrt(d2), push=(r-d)/d;
   return {x:dx*push,y:dy*push};
 }
-const SOLIDS=WALLS.concat(FURNITURE);
+const SOLIDS=WALLS;
 function pointBlocked(x,y,pad){
   for(const rc of SOLIDS){
     if(x>rc.x-pad&&x<rc.x+rc.w+pad&&y>rc.y-pad&&y<rc.y+rc.h+pad)return true;
@@ -1474,7 +1563,7 @@ function tryThrow(c,aimAng){
     const b={
       x:c.x+Math.cos(c.a)*30, y:c.y+Math.sin(c.a)*30,
       vx:Math.cos(ang+off)*S.throwSpeed, vy:Math.sin(ang+off)*S.throwSpeed,
-      owner:c, state:"out", travel:0, range:S.range, r:S.ballR,
+      owner:c, state:"out", travel:0, range:S.range, r:S.ballR, ti:c.ti,
       retT:0, mesh:ballMesh(S.ballR,false),
     };
     b.mesh.position.set(b.x,16,b.y);
@@ -1508,23 +1597,34 @@ function landHit(ball,victim){
   burst(victim.x,victim.y,victim.player.color,26);
   game.shake=Math.max(game.shake,(!th.isAI||!victim.isAI)?10:4);
   dropGroundBall(ball.x,ball.y,ball.vx*0.1,ball.vy*0.1);
-  if(th.stick>=MAX_STICK)endMatch(th,"RAN THE RACK");
+  th.boostGlow=Math.max(th.boostGlow,0.55);
 }
-function endMatch(winner,how){
-  game.winner=winner; game.phase="over";
-  const sorted=[...game.cars].sort((a,b)=>b.stick-a.stick||b.hits-a.hits);
-  $("overTitle").textContent=how==="RAN THE RACK"?"RAN THE RACK!":"FULL TIME!";
-  $("overWinner").innerHTML=`🏆 ${sorted[0].player.name} wins with <b>${STICKS[sorted[0].stick-1]}</b> (Stick ${sorted[0].stick})`;
-  $("overRows").innerHTML=sorted.map((c,i)=>`
+const ORD=["","1st","2nd","3rd","4th"];
+function raceOrder(){
+  return [...game.cars].sort((a,b)=>{
+    if(a.finished&&b.finished)return a.place-b.place;
+    if(a.finished!==b.finished)return a.finished?-1:1;
+    return b.dist-a.dist;
+  });
+}
+function fmtT(t){ const m=Math.floor(t/60), s=t-m*60; return `${m}:${s<10?"0":""}${s.toFixed(1)}`; }
+function endMatch(){
+  if(game.phase==="over")return;
+  game.phase="over";
+  const order=raceOrder(), me=game.cars[0], myPos=order.indexOf(me)+1;
+  game.winner=order[0];
+  $("overTitle").textContent=myPos===1?"YOU WIN!":`${ORD[myPos].toUpperCase()} PLACE`;
+  $("overWinner").innerHTML=`🏁 ${order[0].player.name} wins the Home Circuit${order[0].finished?` in <b>${fmtT(order[0].finishT)}</b>`:""}`;
+  $("overRows").innerHTML=order.map((c,i)=>`
     <div class="standRow">
       <div style="font-size:22px">${["🥇","🥈","🥉","4th"][i]}</div>
       <div class="pl"><span class="swatch" style="background:${c.player.color}"></span>
-        ${c.player.name}${c.isAI?"":" (YOU)"}<div style="font-family:Verdana;font-size:11px;color:#9fb0c8">${c.car.name}</div></div>
-      <div class="lv">Stick ${c.stick}<div style="font-family:Verdana;font-size:11px;color:#9fb0c8">${c.hits} hits</div></div>
+        ${c.player.name}${c.isAI?"":" (YOU)"}<div style="font-family:Verdana;font-size:11px;color:#9fb0c8">${c.player.team} · ${c.car.name}</div></div>
+      <div class="lv">${c.finished?fmtT(c.finishT):`lap ${clamp(Math.floor(c.dist)+1,1,LAPS)}`}<div style="font-family:Verdana;font-size:11px;color:#9fb0c8">Stick ${c.stick} · ${c.hits} hits</div></div>
     </div>`).join("");
   showScreen("over");
   engineTick(0,false);
-  if(!sorted[0].isAI)SFX.win();
+  if(myPos===1)SFX.win();
 }
 function addMsg(text,color){
   const d=document.createElement("div");
@@ -1537,7 +1637,7 @@ function addMsg(text,color){
 /* ---------------- CAR PHYSICS ---------------- */
 function updateCar(c,dt){
   const m=c.player.mod;
-  const maxSpd=(330+c.car.speed*260)*(m.speed||1);
+  const maxSpd=(330+c.car.speed*260)*(m.speed||1)*(1+(c.stick-1)*0.004);   // every stick level adds a little top end
   const turnRate=(2.0+c.car.handling*1.6)*(m.handling||1);
   let throttle=0,steer=0,drift=false;
   if(c.stun>0){
@@ -1570,6 +1670,8 @@ function updateCar(c,dt){
   const grip=drift?2.2:9;
   lat*=Math.max(0,1-grip*dt);
   let cap=maxSpd; if(c.boostGlow>0)cap=maxSpd*1.55;
+  if(c.onShoulder){cap*=0.62;fwd*=Math.pow(0.5,dt);}                       // off the racing surface
+  if(c.isAI&&game.cars[0]){const lead=c.dist-game.cars[0].dist;cap*=lead<-0.3?1.14:(lead>0.25?0.9:1);}   // rubber band
   const inPool=c.x>POOL.x&&c.x<POOL.x+POOL.w&&c.y>POOL.y&&c.y<POOL.y+POOL.h;
   if(inPool){
     cap*=0.45; fwd*=Math.pow(0.25,dt);
@@ -1579,7 +1681,7 @@ function updateCar(c,dt){
   c.vx=hx*fwd+nx*lat; c.vy=hy*fwd+ny*lat;
   c.x+=c.vx*dt; c.y+=c.vy*dt;
   for(const p of PADS){
-    if(c.x>p.x&&c.x<p.x+p.w&&c.y>p.y&&c.y<p.y+p.h&&c.boostGlow<=0.2){
+    if(dist(c.x,c.y,p.x,p.y)<p.r&&c.boostGlow<=0.2){
       c.vx+=Math.cos(p.ang)*420; c.vy+=Math.sin(p.ang)*420; c.boostGlow=0.9;
       if(!c.isAI)SFX.boost();
     }
@@ -1600,13 +1702,24 @@ function updateCar(c,dt){
   const hTarget=inPool?-7:0;
   c.h+=c.hv*dt; c.hv-=900*dt;
   if(c.h<=hTarget&&c.hv<=0){c.h=lerp(c.h,hTarget,Math.min(1,10*dt));c.hv=0;}
-  for(const rc of SOLIDS){
-    const p=circleRectPush(c.x,c.y,c.r,rc);
-    if(p){
-      c.x+=p.x;c.y+=p.y;
-      const pl=Math.hypot(p.x,p.y)||1, pnx=p.x/pl,pny=p.y/pl;
-      const vn=c.vx*pnx+c.vy*pny;
-      if(vn<0){c.vx-=vn*pnx*1.3;c.vy-=vn*pny*1.3;}
+  // track walls, shoulders and lap progress
+  {
+    const hit=trackContain(c,c.r-4,1.4);
+    if(hit&&hit.vn>140&&!c.isAI){game.shake=Math.max(game.shake,5);spawnP(c.x,10,c.y,0xd7ccc8,4,120,90);}
+    const tp=TRACK.pts[c.ti];
+    c.onShoulder=Math.abs(trackLat(c.x,c.y,c.ti))>TRACK_W/2;
+    let ds=tp.s-c.s; if(ds>0.5)ds-=1; else if(ds<-0.5)ds+=1; c.s=tp.s;
+    if(game.phase==="race"&&!c.finished){
+      c.dist+=ds;
+      const lap=Math.floor(c.dist);
+      if(lap>c.lapDone){
+        c.lapDone=lap;
+        if(lap>=LAPS){
+          c.finished=true; c.place=++game.finishCount; c.finishT=game.raceT;
+          if(!c.isAI)endMatch();
+          else if(!game.cars[0].finished)addMsg(`${firstName(c)} takes the flag`,"#c8d5e8");
+        } else if(lap>=1&&!c.isAI){ addMsg(lap===LAPS-1?"FINAL LAP!":`LAP ${lap+1}`,"#8fd3ff"); SFX.level(); }
+      }
     }
   }
   for(const t of TREES){
@@ -1630,11 +1743,14 @@ function updateCar(c,dt){
   }
   c.x=clamp(c.x,50,WORLD.w-50); c.y=clamp(c.y,50,WORLD.h-50);
   c.cool=Math.max(0,c.cool-dt); c.invuln=Math.max(0,c.invuln-dt);
-  const scoopR=c.r+14*(m.scoop||1)+(m.scoop?10:0);
+  const scoopR=c.r+30*(m.scoop||1)+(m.scoop?10:0), pullR=scoopR*2.4;
   const S=effStats(c);
   for(let i=game.groundBalls.length-1;i>=0;i--){
     const g=game.groundBalls[i];
-    if(c.ammo<S.carry&&c.stun<=0&&dist(c.x,c.y,g.x,g.y)<scoopR){
+    if(c.ammo>=S.carry||c.stun>0)break;
+    const d=dist(c.x,c.y,g.x,g.y);
+    if(d<pullR&&d>=scoopR){ const k=(1-d/pullR)*560*dt; g.vx+=(c.x-g.x)/d*k; g.vy+=(c.y-g.y)/d*k; }   // the crosse pulls loose balls in
+    if(d<scoopR){
       removeMesh(g);
       game.groundBalls.splice(i,1); c.ammo++;
       if(!c.isAI){addMsg("GROUND BALL!","#aed581");SFX.scoop();}
@@ -1657,44 +1773,36 @@ function updateCar(c,dt){
 }
 
 /* ---------------- AI ---------------- */
+function firstName(c){ return c.player.name.replace(/"/g,"").split(" ")[0]; }
 function aiDrive(c,dt){
-  const ai=c.ai;
-  ai.thinkT-=dt;
+  const ai=c.ai; ai.thinkT-=dt;
   const S=effStats(c);
-  if(ai.thinkT<=0){
-    ai.thinkT=rnd(0.25,0.5);
-    if(c.ammo>0){
-      let best=null,bd=1e9;
-      for(const o of game.cars){ if(o===c)continue;
-        const d=dist(c.x,c.y,o.x,o.y); if(d<bd){bd=d;best=o;} }
-      ai.target=best;
-    } else {
-      let best=null,bd=1e9;
-      for(const g of game.groundBalls){
-        const d=dist(c.x,c.y,g.x,g.y); if(d<bd){bd=d;best=g;} }
-      ai.target=best||pick(game.cars.filter(o=>o!==c));
-    }
-  }
+  if(ai.thinkT<=0){ ai.thinkT=rnd(0.4,0.9); ai.lane=clamp(ai.lane+rnd(-45,45),-70,70); }
   const spd=Math.hypot(c.vx,c.vy);
   if(ai.rev>0){ ai.rev-=dt; return {throttle:-0.8,steer:ai.turn}; }
-  if(spd<25){ ai.unstick+=dt; if(ai.unstick>0.9){ai.unstick=0;ai.rev=0.65;ai.turn=Math.random()<0.5?-1:1;} }
+  if(spd<25&&game.phase==="race"){ ai.unstick+=dt; if(ai.unstick>1.2){ai.unstick=0;ai.rev=0.6;ai.turn=Math.random()<0.5?-1:1;} }
   else ai.unstick=0;
-  const t=ai.target; if(!t)return{throttle:0.4,steer:0};
-  let tx=t.x,ty=t.y;
-  if(t.vx!==undefined&&t.player){ const lead=dist(c.x,c.y,t.x,t.y)/S.throwSpeed; tx+=t.vx*lead;ty+=t.vy*lead; }
-  const want=Math.atan2(ty-c.y,tx-c.x);
-  let da=angDiff(c.a,want), steer=clamp(da*2.4,-1,1), throttle=Math.abs(da)>1.5?0.35:1;
-  const probe=110+spd*0.25;
-  const fx=c.x+Math.cos(c.a)*probe, fy=c.y+Math.sin(c.a)*probe;
-  if(pointBlocked(fx,fy,c.r+4)){
-    const lOK=!pointBlocked(c.x+Math.cos(c.a-0.7)*probe,c.y+Math.sin(c.a-0.7)*probe,c.r+4);
-    const rOK=!pointBlocked(c.x+Math.cos(c.a+0.7)*probe,c.y+Math.sin(c.a+0.7)*probe,c.r+4);
-    if(lOK&&!rOK)steer=-1; else if(rOK&&!lOK)steer=1; else if(!lOK&&!rOK){steer=1;throttle=0.3;}
-    else steer=da>0?1:-1;
+  // racing line: aim at a point further along the centreline (further when faster), in this car's lane
+  const look=0.012+spd/700*0.03;
+  let tgt=trackAt(c.s+look,ai.lane);
+  if(c.ammo===0){   // empty pocket: detour for a loose ball that's roughly ahead
+    for(const g of game.groundBalls){
+      const d=dist(c.x,c.y,g.x,g.y);
+      if(d<260&&Math.abs(angDiff(c.a,Math.atan2(g.y-c.y,g.x-c.x)))<0.7){tgt={x:g.x,y:g.y};break;}
+    }
   }
-  if(t.player&&c.ammo>0&&c.cool<=0){
-    const d=dist(c.x,c.y,t.x,t.y);
-    if(d<S.range*0.92&&Math.abs(da)<0.22&&t.invuln<=0)tryThrow(c);
+  const want=Math.atan2(tgt.y-c.y,tgt.x-c.x), da=angDiff(c.a,want);
+  let steer=clamp(da*2.6,-1,1), throttle=1;
+  const p1=trackPt(c.s+0.02), p2=trackPt(c.s+0.07);
+  const bend=Math.abs(angDiff(Math.atan2(p1.dy,p1.dx),Math.atan2(p2.dy,p2.dx)));
+  if(bend>0.55&&spd>380)throttle=0.45;      // lift for the corner ahead
+  if(Math.abs(da)>1.2)throttle=0.3;
+  if(c.ammo>0&&c.cool<=0){                   // plunk whoever is ahead and in range
+    for(const o of game.cars){
+      if(o===c||o.invuln>0)continue;
+      const d=dist(c.x,c.y,o.x,o.y);
+      if(d<S.range*0.9&&Math.abs(angDiff(c.a,Math.atan2(o.y-c.y,o.x-c.x)))<0.3){tryThrow(c);break;}
+    }
   }
   return {throttle,steer};
 }
@@ -1724,16 +1832,7 @@ function updateBall(b,i,dt){
     }
   }
   b.x+=b.vx*dt; b.y+=b.vy*dt;
-  for(const rc of SOLIDS){
-    const p=circleRectPush(b.x,b.y,b.r,rc);
-    if(p){
-      b.x+=p.x;b.y+=p.y;
-      const pl=Math.hypot(p.x,p.y)||1,pnx=p.x/pl,pny=p.y/pl;
-      const vn=b.vx*pnx+b.vy*pny;
-      if(vn<0){b.vx-=2*vn*pnx;b.vy-=2*vn*pny;}
-      if(b.state==="out")b.travel+=b.range*0.34;
-    }
-  }
+  if(trackContain(b,b.r,2.0)&&b.state==="out")b.travel+=b.range*0.34;
   for(const t of TREES){
     const d=dist(b.x,b.y,t.x,t.y),min=t.r+b.r;
     if(d<min&&d>0){
@@ -1805,29 +1904,38 @@ function updateHUD(){
     $("ammoRow").innerHTML=Array.from({length:S.carry},(_,i)=>
       `<div class="pip ${i<p.ammo?"full":""}"></div>`).join("");
   }
-  const t=Math.max(0,game.timer), mmn=Math.floor(t/60), ss=Math.floor(t%60);
-  const tKey=mmn+":"+ss;
-  if(hudCache.timer!==tKey){
-    hudCache.timer=tKey;
-    $("timer").textContent=`${mmn}:${String(ss).padStart(2,"0")}`;
-    $("timer").classList.toggle("hot",t<30);
+  const order=raceOrder(), pos=order.indexOf(p)+1;
+  const lapShown=p.finished?LAPS:clamp(Math.floor(p.dist)+1,1,LAPS);
+  const lKey=lapShown+"/"+pos;
+  if(hudCache.lap!==lKey){
+    hudCache.lap=lKey;
+    $("timer").textContent=`LAP ${lapShown}/${LAPS}`;
+    $("posTxt").textContent=ORD[pos];
+    $("posPanel").classList.toggle("first",pos===1);
   }
-  const sorted=[...game.cars].sort((a,b)=>b.stick-a.stick||b.hits-a.hits);
-  const sKey=sorted.map(c=>c.player.name+c.stick).join("|");
+  const sKey=order.map(c=>c.player.name+(c.finished?"F":Math.floor(c.dist))).join("|");
   if(hudCache.stand!==sKey){
     hudCache.stand=sKey;
-    $("standRows").innerHTML=sorted.map((c,i)=>`
+    $("standRows").innerHTML=order.map((c,i)=>`
       <div class="srow ${c.isAI?"":"you"}">
         <div class="dot" style="background:${c.player.color}"></div>
-        <span class="n">${i===0?"👑 ":""}${c.player.name.replace(/"/g,"").split(" ")[0]}${c.isAI?"":" (YOU)"}</span>
-        <span class="v">${c.stick}</span>
+        <span class="n">${ORD[i+1]} ${firstName(c)}${c.isAI?"":" (YOU)"}</span>
+        <span class="v">${c.finished?"🏁":"L"+clamp(Math.floor(c.dist)+1,1,LAPS)}</span>
       </div>`).join("");
   }
   // minimap
   const MS=200/WORLD.w;
-  mm.fillStyle="#20324e"; mm.fillRect(0,0,200,138);
-  mm.fillStyle="#2f4a70";
-  for(const w of WALLS)mm.fillRect(w.x*MS,w.y*MS,Math.max(1,w.w*MS),Math.max(1,w.h*MS));
+  mm.fillStyle="#20324e"; mm.fillRect(0,0,200,144);
+  if(!hudCache.mmPath){
+    const path=new Path2D();
+    TRACK.pts.forEach((q,i)=>{ if(i%4)return; if(i===0)path.moveTo(q.x*MS,q.y*MS); else path.lineTo(q.x*MS,q.y*MS); });
+    path.closePath(); hudCache.mmPath=path;
+  }
+  mm.lineJoin="round"; mm.lineCap="round";
+  mm.strokeStyle="#3b4d6b"; mm.lineWidth=WALL_OFF*2*MS; mm.stroke(hudCache.mmPath);
+  mm.strokeStyle="#66788f"; mm.lineWidth=TRACK_W*MS; mm.stroke(hudCache.mmPath);
+  const sp=TRACK.pts[0]; mm.strokeStyle="#fff"; mm.lineWidth=1.5;
+  mm.beginPath(); mm.moveTo((sp.x-sp.nx*TRACK_W/2)*MS,(sp.y-sp.ny*TRACK_W/2)*MS); mm.lineTo((sp.x+sp.nx*TRACK_W/2)*MS,(sp.y+sp.ny*TRACK_W/2)*MS); mm.stroke();
   mm.fillStyle="#2a6db3"; mm.fillRect(POOL.x*MS,POOL.y*MS,POOL.w*MS,POOL.h*MS);
   mm.fillStyle="#fdd835";
   for(const g of game.groundBalls){mm.beginPath();mm.arc(g.x*MS,g.y*MS,1.5,0,TAU);mm.fill();}
@@ -1868,24 +1976,25 @@ function tick(now){
   }
   pollGamepad();
   if(game.phase==="race"&&!game.paused){
-    game.timer-=dt;
-    if(game.timer<=0){game.timer=0;endMatch(null,"FULL TIME");}
+    game.raceT+=dt;
+    if(game.raceT>420)endMatch();
     else{
       for(const c of game.cars)updateCar(c,dt);
       for(let i=game.balls.length-1;i>=0;i--)updateBall(game.balls[i],i,dt);
       for(const g of game.groundBalls){
         g.x+=g.vx*dt;g.y+=g.vy*dt;g.vx*=Math.pow(0.05,dt);g.vy*=Math.pow(0.05,dt);
-        for(const rc of SOLIDS){const p=circleRectPush(g.x,g.y,g.r,rc);if(p){g.x+=p.x;g.y+=p.y;g.vx*=-0.5;g.vy*=-0.5;}}
+        trackContain(g,g.r,1.5);
         g.x=clamp(g.x,52,WORLD.w-52);g.y=clamp(g.y,52,WORLD.h-52);
         g.mesh.position.set(g.x,6,g.y);
         const pulse=1+0.25*Math.sin(now/200);
         g.ring.scale.setScalar(pulse);
       }
       game.gbTimer+=dt;
-      if(game.gbTimer>6){
+      if(game.gbTimer>3){
         game.gbTimer=0;
-        if(game.groundBalls.length<6){
-          const s=pick(GB_SPOTS); dropGroundBall(s[0],s[1]);
+        if(game.groundBalls.length<8){
+          const s=pick(GB_SPOTS);
+          if(!game.groundBalls.some(g=>dist(g.x,g.y,s[0],s[1])<60))dropGroundBall(s[0],s[1],0,0);
         }
       }
       const p0=game.cars[0];
@@ -1918,9 +2027,21 @@ function tick(now){
 }
 
 /* ---------------- TOUCH CONTROLS ---------------- */
+// two layouts: "dpad" (◀ ▶ + ▲ gas / ▼ reverse buttons, the default) or "stick" (virtual joystick + auto-gas)
+game.touchScheme=(()=>{try{return localStorage.getItem("laxfoo.touch")||"dpad";}catch(_){return "dpad";}})();
+function applyTouchScheme(){
+  const s=game.touchScheme;
+  $("touchUI").classList.toggle("scheme-dpad",s==="dpad");
+  $("touchUI").classList.toggle("scheme-stick",s==="stick");
+  game.autoGas=s==="stick";
+  const b=$("btnScheme"); if(b)b.textContent="TOUCH CONTROLS: "+(s==="dpad"?"BUTTONS":"JOYSTICK");
+  try{localStorage.setItem("laxfoo.touch",s);}catch(_){}
+}
 (function setupTouchUI(){
   if(!TOUCH)return;
   document.querySelectorAll(".touchOnly").forEach(el=>el.style.display="");
+  applyTouchScheme();
+  $("btnScheme").onclick=()=>{game.touchScheme=game.touchScheme==="dpad"?"stick":"dpad";applyTouchScheme();};
   const bind=(el,down,up)=>{
     const active=new Set();
     const on=e=>{e.preventDefault();active.add(e.pointerId);el.classList.add("on");down(e);
