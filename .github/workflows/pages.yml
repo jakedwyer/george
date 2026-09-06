@@ -43,6 +43,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Stamp asset URLs with the commit so browsers never reuse a stale script
+        run: |
+          v="${GITHUB_SHA::8}"
+          sed -i -E "s#(src|href)=\"((vendor|assets|js)/[^\"?]+)\"#\1=\"\2?v=$v\"#g" index.html
+          grep -o '(src|href)="[^"]*\?v=[^"]*"' -E index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
