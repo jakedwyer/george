@@ -155,6 +155,16 @@ const TREES = [ {x:2350,y:1350,r:42}, {x:1500,y:1350,r:40}, {x:700,y:600,r:44}, 
 const POOL = {x:2150,y:950,w:300,h:220};
 const TRAMPOLINE = {x:2350,y:1600,r:100};
 const PADS = [{s:0.14,lat:0},{s:0.46,lat:0},{s:0.62,lat:-40},{s:0.83,lat:30}].map(p=>{const t=trackAt(p.s,p.lat);return {x:t.x,y:t.y,ang:t.a,r:62};});
+// power-ups: five of them, held one at a time, picked up from the "?" boxes on the track
+const POWERUPS={
+  star:  {name:"STAR POWER",     icon:"⭐", tip:"Can't be plunked. Bump a rival to spin them out.", dur:8},
+  rocket:{name:"ROCKET BOOST",   icon:"🚀", tip:"Way faster for a few seconds.",                     dur:5},
+  grip:  {name:"STICKY TIRES",   icon:"🛞", tip:"Turns on a dime and never slows off the line.",     dur:10},
+  swing: {name:"HOP OUT & SWING",icon:"🥍", tip:"Park, hop out and whack every rig around you.",     dur:0},
+  storm: {name:"BALL STORM",     icon:"🌪️", tip:"Six balls at once.",                               dur:0},
+};
+const POWERUP_IDS=Object.keys(POWERUPS);
+const ITEM_SPOTS=[0.05,0.22,0.40,0.57,0.75,0.90].map((s,i)=>{const t=trackAt(s,[-50,50,0][i%3]);return {x:t.x,y:t.y,mesh:null,t:0};});
 // ground-ball "item box" spots along the lap
 const GB_SPOTS = [0.08,0.18,0.27,0.36,0.44,0.54,0.63,0.72,0.81,0.9].map((s,i)=>{const t=trackAt(s,[-55,0,55][i%3]);return [t.x,t.y];});
 // starting grid, two by two just behind the line; index 0 is the human (back of the grid)
@@ -202,7 +212,7 @@ function engineTick(speed,on){
 
 /* ---------------- INPUT ---------------- */
 const keys={};
-const input={steer:0,throttle:null,drift:false,joyActive:false,gp:false,gpThrow:false,gpPause:false};
+const input={steer:0,throttle:null,drift:false,joyActive:false,dragActive:false,dragSteer:0,gp:false,gpThrow:false,gpPause:false,gpItem:false,gpItemEdge:false};
 function pollGamepad(){
   const pads=navigator.getGamepads?navigator.getGamepads():[];
   let gp=null; for(const p of pads){ if(p&&p.connected){gp=p;break;} }
@@ -216,6 +226,8 @@ function pollGamepad(){
   input.gpDrift=!!((gp.buttons[1]&&gp.buttons[1].pressed)||(gp.buttons[4]&&gp.buttons[4].pressed));
   const thr=!!((gp.buttons[0]&&gp.buttons[0].pressed)||(gp.buttons[5]&&gp.buttons[5].pressed));
   input.gpThrowEdge=thr&&!input.gpThrow; input.gpThrow=thr;
+  const itm=!!((gp.buttons[2]&&gp.buttons[2].pressed)||(gp.buttons[3]&&gp.buttons[3].pressed));
+  input.gpItemEdge=itm&&!input.gpItem; input.gpItem=itm;
   const pause=!!(gp.buttons[9]&&gp.buttons[9].pressed);
   if(pause&&!input.gpPause)togglePause(); input.gpPause=pause;
 }
@@ -232,22 +244,24 @@ addEventListener("keydown",e=>{
   handleMenuKeys(e);
   if(game.phase==="race"||game.phase==="countdown"){
     if(e.key.toLowerCase()==="p"||e.key==="Escape") togglePause();
+    if(["e","q","enter"].includes(e.key.toLowerCase())&&game.phase==="race"&&!game.paused&&game.cars[0])useItem(game.cars[0]);
   }
 });
 addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;});
 const raycaster=new THREE.Raycaster(), groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 addEventListener("touchstart",()=>{audio();ensureEngine();},{passive:true});
+// aimed throw at a screen point (mouse click on desktop, a tap on touch)
+function aimThrowAt(cx,cy){
+  if(game.phase!=="race"||game.paused)return;
+  const p=game.cars[0]; if(!p||p.stun>0)return;
+  const ndc=new THREE.Vector2((cx/innerWidth)*2-1,-(cy/innerHeight)*2+1);
+  raycaster.setFromCamera(ndc,camera);
+  const hit=new THREE.Vector3();
+  if(raycaster.ray.intersectPlane(groundPlane,hit))tryThrow(p,Math.atan2(hit.z-p.y,hit.x-p.x));
+}
 addEventListener("pointerdown",e=>{
   audio(); ensureEngine();
-  if(game.phase==="race"&&!game.paused&&e.target.id==="game"){
-    const p=game.cars[0]; if(!p||p.stun>0)return;
-    const ndc=new THREE.Vector2((e.clientX/innerWidth)*2-1,-(e.clientY/innerHeight)*2+1);
-    raycaster.setFromCamera(ndc,camera);
-    const hit=new THREE.Vector3();
-    if(raycaster.ray.intersectPlane(groundPlane,hit)){
-      tryThrow(p,Math.atan2(hit.z-p.y,hit.x-p.x));
-    }
-  }
+  if(e.target.id==="game")aimThrowAt(e.clientX,e.clientY);
 });
 
 /* ================================================================
@@ -520,6 +534,7 @@ const TEX={
     }
   }),
 };
+TEX.qmark=canvasTex(64,(c,s)=>{c.fillStyle="#1e88e5";c.fillRect(0,0,s,s);c.fillStyle="#fff";c.font="bold 48px Arial";c.textAlign="center";c.textBaseline="middle";c.fillText("?",s/2,s/2+3);});
 TEX.checker=canvasTex(64,(c,s)=>{for(let y=0;y<8;y++)for(let x=0;x<8;x++){c.fillStyle=(x+y)%2?"#141414":"#f4f4f4";c.fillRect(x*8,y*8,8,8);}});
 TEX.arrow.colorSpace=THREE.SRGBColorSpace;
 
@@ -686,6 +701,13 @@ function buildProp(f){
   g.rotation.y=-a+(f.side>0?Math.PI:0);
   return g;
 }
+function buildItemBoxes(){
+  const mat=new THREE.MeshStandardMaterial({map:TEX.qmark,emissive:0x1565c0,emissiveIntensity:.45,roughness:.35,metalness:.1});
+  for(const b of ITEM_SPOTS){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(24,24,24),mat);
+    m.position.set(b.x,20,b.y); m.castShadow=true; worldGroup.add(m); b.mesh=m;
+  }
+}
 function buildWorld(){
   floorPlane(0,0,WORLD.w,WORLD.h,"grass",TEX.grass,150,-0.6,0xa6c874,0.8);   // the lot
   const fenceTop=MAT.matte(0x74593c);
@@ -696,6 +718,7 @@ function buildWorld(){
     m.position.set(w.x+w.w/2,FENCE_H/2,w.y+w.h/2); m.castShadow=true;m.receiveShadow=true; worldGroup.add(m);
   }
   buildTrack();
+  buildItemBoxes();
   for(const f of PROPS)worldGroup.add(buildProp(f));
   for(const t of TREES)worldGroup.add(buildTree(t));
   buildPool(); buildTrampoline(); buildPads();
@@ -1460,6 +1483,7 @@ function makeCar(playerIdx,carIdx,spawn,isAI){
     stun:0, invuln:0, spin:0, boostGlow:0, trampCool:0,
     hits:0, ai:{target:null,unstick:0,rev:0,turn:0,thinkT:0,lane:rnd(-50,50)},
     ti:-1, s:0, dist:0, lapDone:-1, finished:false, place:0, finishT:0, onShoulder:false,
+    item:null, itemUseT:0, fx:{star:0,rocket:0,grip:0}, swingT:0, swingFig:null, fxRing:null, wrongT:0,
   };
 }
 function ballMesh(r,ground){
@@ -1493,6 +1517,7 @@ function startMatch(){
   game.cars=cars; game.balls=[]; game.msgs=[];
   game.groundBalls=GB_SPOTS.map(([x,y])=>makeGroundBall(x,y,0,0));
   game.raceT=0; game.finishCount=0; game.countT=3.6; game.gbTimer=0; game.winner=null;
+  for(const b of ITEM_SPOTS){b.t=0;b.mesh.visible=true;}
   game.shake=0; game.paused=false; game.cdOrbit=0;
   game.phase="countdown";
   $("msgs").innerHTML="";
@@ -1576,13 +1601,13 @@ function dropGroundBall(x,y,vx,vy){
   game.groundBalls.push(makeGroundBall(x,y,vx,vy));
 }
 function removeMesh(o){ if(o.mesh){dynamic.remove(o.mesh);} }
-function landHit(ball,victim){
-  const th=ball.owner;
+// somebody got got: stun + spin the victim, hand the attacker the next stick and a burst of speed
+function spinOut(victim,th,kx,ky,stunMul=1){
   const S=effStats(th);
-  victim.stun=S.stun*(victim.player.mod.stun||1)*(1.15-victim.car.tough*0.4);
+  victim.stun=S.stun*(victim.player.mod.stun||1)*(1.15-victim.car.tough*0.4)*stunMul;
   victim.invuln=victim.stun+1.2;
-  victim.spin=0;
-  victim.vx+=ball.vx*0.4; victim.vy+=ball.vy*0.4;
+  victim.spin=0; victim.swingT=0;
+  victim.vx+=kx; victim.vy+=ky;
   const lost=victim.stick>1?1:0;
   victim.stick=Math.max(1,victim.stick-1);
   if(victim.ammo>0){victim.ammo--;dropGroundBall(victim.x,victim.y);}
@@ -1596,8 +1621,42 @@ function landHit(ball,victim){
   if(!th.isAI&&victim.isAI)SFX.hit(); else if(th.isAI&&victim.isAI)beep(140,0.1,"sawtooth",0.05,-60);
   burst(victim.x,victim.y,victim.player.color,26);
   game.shake=Math.max(game.shake,(!th.isAI||!victim.isAI)?10:4);
-  dropGroundBall(ball.x,ball.y,ball.vx*0.1,ball.vy*0.1);
   th.boostGlow=Math.max(th.boostGlow,0.55);
+}
+function landHit(ball,victim){
+  spinOut(victim,ball.owner,ball.vx*0.4,ball.vy*0.4);
+  dropGroundBall(ball.x,ball.y,ball.vx*0.1,ball.vy*0.1);
+}
+function useItem(c){
+  if(!c.item||game.phase!=="race"||c.stun>0||c.swingT>0)return;
+  const id=c.item, P=POWERUPS[id]; c.item=null;
+  if(!c.isAI)addMsg(`${P.icon} ${P.name}!`,"#ffd54f");
+  if(id==="star"){c.fx.star=P.dur;c.invuln=Math.max(c.invuln,P.dur);SFX.level();}
+  else if(id==="rocket"){c.fx.rocket=P.dur;SFX.boost();}
+  else if(id==="grip"){c.fx.grip=P.dur;SFX.catch();}
+  else if(id==="swing"){c.swingT=1.8;c.swung=false;SFX.bounce();}
+  else if(id==="storm"){ballStorm(c);}
+}
+function ballStorm(c){
+  const S=effStats(c);
+  for(let i=0;i<6;i++){
+    const off=(i-2.5)*0.2, sp=S.throwSpeed*rnd(0.85,1.05);
+    const b={x:c.x+Math.cos(c.a)*30,y:c.y+Math.sin(c.a)*30,vx:Math.cos(c.a+off)*sp,vy:Math.sin(c.a+off)*sp,
+      owner:c,state:"out",travel:0,range:S.range*1.15,r:S.ballR,ti:c.ti,retT:0,storm:true,mesh:ballMesh(S.ballR,false)};
+    b.mesh.position.set(b.x,16,b.y); dynamic.add(b.mesh); game.balls.push(b);
+  }
+  SFX.throw(); setTimeout(()=>SFX.throw(),90);
+}
+// the swing lands: everyone close gets plunked
+function doSwing(c){
+  let n=0;
+  for(const o of game.cars){
+    if(o===c||o.invuln>0)continue;
+    const d=dist(c.x,c.y,o.x,o.y);
+    if(d<150){spinOut(o,c,(o.x-c.x)/(d||1)*260,(o.y-c.y)/(d||1)*260,1.3);n++;}
+  }
+  burst(c.x,c.y,0xffd54f,40); game.shake=Math.max(game.shake,c.isAI?4:8);
+  if(!c.isAI)addMsg(n?`WHACKED ${n}!`:"Swing and a miss","#ffd54f");
 }
 const ORD=["","1st","2nd","3rd","4th"];
 function raceOrder(){
@@ -1652,26 +1711,48 @@ function updateCar(c,dt){
     // virtual joystick (touch) and gamepad
     let jSteer=input.joyActive?input.steer:0, jThr=input.joyActive?input.throttle:null;
     let gSteer=input.gp?input.gpSteer:0, gThr=input.gp?input.gpThrottle:null;
-    steer=clamp(c.kSteer+jSteer+gSteer,-1,1);
+    let dSteer=input.dragActive?input.dragSteer:0;                      // touch: drag anywhere to turn
+    steer=clamp(c.kSteer+jSteer+gSteer+dSteer,-1,1);
     throttle=kThr!==null?kThr:(jThr!==null?jThr:(gThr!==null?gThr:0));
-    if(TOUCH&&game.autoGas&&throttle===0&&kThr===null&&gThr===null)throttle=1;   // touch: auto-gas unless braking
+    if((game.easy||(TOUCH&&game.autoGas))&&throttle===0&&kThr===null&&gThr===null)throttle=1;   // auto-gas unless braking
     drift=!!(keys["shift"]||(input.gp&&input.gpDrift));
     if(keys[" "]||keys["x"]||(input.gp&&input.gpThrowEdge))tryThrow(c);
+    if(input.gp&&input.gpItemEdge)useItem(c);
+    if(game.easy){
+      // smart steering: ease toward a point ahead on the centreline, firmly near the walls or when facing backwards,
+      // but always let the kid's own steering win when they push
+      const tp=TRACK.pts[c.ti], lat=trackLat(c.x,c.y,c.ti);
+      const aim=trackAt(c.s+0.025,lat*0.4);
+      const want=clamp(angDiff(c.a,Math.atan2(aim.y-c.y,aim.x-c.x))*2.2,-1,1);
+      const edge=clamp((Math.abs(lat)-60)/70,0,1);
+      const wrong=Math.abs(angDiff(c.a,Math.atan2(tp.dy,tp.dx)))>1.3;
+      const w=0.22+0.5*edge+(wrong?0.45:0);
+      steer=clamp(steer*(1-0.35*w)+want*w*(1-Math.abs(steer)*0.6),-1,1);
+      c.wrongT=wrong?c.wrongT+dt:0;
+      if(c.wrongT>1.2){c.wrongT=-1.5;addMsg("↩ WRONG WAY","#ff8a80");}
+    }
   } else {
     const o=aiDrive(c,dt); throttle=o.throttle; steer=o.steer;
   }
+  // power-up timers
+  for(const k in c.fx)c.fx[k]=Math.max(0,c.fx[k]-dt);
+  if(c.swingT>0){                                   // hopped out: park it, then the swing lands
+    const prev=c.swingT; c.swingT-=dt; throttle=0; steer=0;
+    if(prev>0.9&&c.swingT<=0.9&&!c.swung){c.swung=true;doSwing(c);}
+  }
   const hx=Math.cos(c.a),hy=Math.sin(c.a),nx=-hy,ny=hx;
   let fwd=c.vx*hx+c.vy*hy, lat=c.vx*nx+c.vy*ny;
-  if(c.stun<=0){
-    fwd+=throttle*(throttle>0?620:480)*dt;
-    c.a+=steer*turnRate*dt*clamp(Math.abs(fwd)/180,0,1)*(fwd<-20?-1:1);
+  if(c.stun<=0&&c.swingT<=0){
+    fwd+=throttle*(throttle>0?620:480)*(c.fx.rocket>0?1.8:1)*dt;
+    c.a+=steer*turnRate*(c.fx.grip>0?1.5:1)*dt*clamp(Math.abs(fwd)/180,0,1)*(fwd<-20?-1:1);
   }
-  fwd*=Math.pow(0.72,dt);
-  const grip=drift?2.2:9;
+  fwd*=Math.pow(c.swingT>0?0.02:0.72,dt);
+  const grip=c.fx.grip>0?14:(drift?2.2:9);
   lat*=Math.max(0,1-grip*dt);
   let cap=maxSpd; if(c.boostGlow>0)cap=maxSpd*1.55;
-  if(c.onShoulder){cap*=0.62;fwd*=Math.pow(0.5,dt);}                       // off the racing surface
-  if(c.isAI&&game.cars[0]){const lead=c.dist-game.cars[0].dist;cap*=lead<-0.3?1.14:(lead>0.25?0.9:1);}   // rubber band
+  if(c.fx.rocket>0){cap=maxSpd*1.75;spawnP(c.x-hx*30,10,c.y-hy*30,0xff7043,2,90,70);}
+  if(c.onShoulder&&c.fx.grip<=0){cap*=game.easy?0.78:0.62;fwd*=Math.pow(game.easy?0.7:0.5,dt);}   // off the racing surface
+  if(c.isAI&&game.cars[0]){const lead=c.dist-game.cars[0].dist;cap*=lead<-0.3?1.14:(lead>0.25?(game.easy?0.84:0.9):(game.easy?0.94:1));}   // rubber band
   const inPool=c.x>POOL.x&&c.x<POOL.x+POOL.w&&c.y>POOL.y&&c.y<POOL.y+POOL.h;
   if(inPool){
     cap*=0.45; fwd*=Math.pow(0.25,dt);
@@ -1739,10 +1820,20 @@ function updateCar(c,dt){
       c.x+=px*ov;c.y+=py*ov;o.x-=px*ov;o.y-=py*ov;
       const rvx=c.vx-o.vx,rvy=c.vy-o.vy,vn=rvx*px+rvy*py;
       if(vn<0){c.vx-=vn*px*0.6;c.vy-=vn*py*0.6;o.vx+=vn*px*0.6;o.vy+=vn*py*0.6;}
+      if(c.fx.star>0&&o.fx.star<=0&&o.invuln<=0)spinOut(o,c,-px*300,-py*300,1.2);   // star power: bumps spin rivals out
     }
   }
   c.x=clamp(c.x,50,WORLD.w-50); c.y=clamp(c.y,50,WORLD.h-50);
   c.cool=Math.max(0,c.cool-dt); c.invuln=Math.max(0,c.invuln-dt);
+  // "?" boxes hand out a power-up (one held at a time)
+  if(!c.item&&c.stun<=0){
+    for(const b of ITEM_SPOTS){
+      if(b.t>0||dist(c.x,c.y,b.x,b.y)>38)continue;
+      c.item=pick(POWERUP_IDS); c.itemUseT=rnd(0.6,2.5); b.t=4; b.mesh.visible=false;
+      if(!c.isAI){addMsg(`${POWERUPS[c.item].icon} ${POWERUPS[c.item].name} — tap it or press E`,"#8fd3ff");SFX.scoop();}
+      break;
+    }
+  }
   const scoopR=c.r+30*(m.scoop||1)+(m.scoop?10:0), pullR=scoopR*2.4;
   const S=effStats(c);
   for(let i=game.groundBalls.length-1;i>=0;i--){
@@ -1757,6 +1848,22 @@ function updateCar(c,dt){
     }
   }
   // ---- visuals ----
+  if(!c.fxRing){
+    c.fxRing=new THREE.Mesh(new THREE.TorusGeometry(34,2.2,8,40),MAT.emis(0xffd54f,1.6));
+    c.fxRing.rotation.x=Math.PI/2; c.fxRing.visible=false; dynamic.add(c.fxRing);
+  }
+  const fxOn=c.fx.star>0?0xffd54f:(c.fx.grip>0?0x4fc3f7:(c.fx.rocket>0?0xff7043:0));
+  c.fxRing.visible=!!fxOn;
+  if(fxOn){c.fxRing.material.color.set(fxOn);c.fxRing.material.emissive.set(fxOn);c.fxRing.position.set(c.x,6+2*Math.sin(performance.now()/120),c.y);c.fxRing.rotation.z+=dt*3;c.fxRing.scale.setScalar(1+0.08*Math.sin(performance.now()/90));}
+  if(c.swingT>0){
+    if(!c.swingFig&&PROP_TEMPLATES.driverStanding){
+      const g=new THREE.Group();
+      const fig=tintClone(PROP_TEMPLATES.driverStanding,driverTints(c.player)); fig.scale.setScalar(UNITS_PER_M*1.14); g.add(fig);
+      if(PROP_TEMPLATES.stick){const st=tintClone(PROP_TEMPLATES.stick,[[/^pocket/,c.player.color]]);st.scale.setScalar(UNITS_PER_M*1.14);st.position.set(-0.3*UNITS_PER_M,0.9*UNITS_PER_M,0.2*UNITS_PER_M);st.rotation.z=1.3;g.add(st);}
+      c.swingFig=g; dynamic.add(g);
+    }
+    if(c.swingFig){c.swingFig.visible=true;c.swingFig.position.set(c.x+nx*34,0,c.y+ny*34);c.swingFig.rotation.y=-(c.a)+(1.8-c.swingT)*7;}
+  } else if(c.swingFig)c.swingFig.visible=false;
   c.mesh.position.set(c.x,c.h,c.y);
   c.mesh.rotation.y=-(c.a+(c.stun>0?c.spin:0));
   const spinRate=fwd*dt/7.4;
@@ -1779,6 +1886,13 @@ function aiDrive(c,dt){
   const S=effStats(c);
   if(ai.thinkT<=0){ ai.thinkT=rnd(0.4,0.9); ai.lane=clamp(ai.lane+rnd(-45,45),-70,70); }
   const spd=Math.hypot(c.vx,c.vy);
+  if(c.item){
+    c.itemUseT-=dt;
+    if(c.itemUseT<=0){
+      if(c.item==="swing"){ if(game.cars.some(o=>o!==c&&dist(c.x,c.y,o.x,o.y)<140))useItem(c); else if(c.itemUseT<-12)useItem(c); }
+      else useItem(c);
+    }
+  }
   if(ai.rev>0){ ai.rev-=dt; return {throttle:-0.8,steer:ai.turn}; }
   if(spd<25&&game.phase==="race"){ ai.unstick+=dt; if(ai.unstick>1.2){ai.unstick=0;ai.rev=0.6;ai.turn=Math.random()<0.5?-1:1;} }
   else ai.unstick=0;
@@ -1811,7 +1925,10 @@ function aiDrive(c,dt){
 function updateBall(b,i,dt){
   if(b.state==="out"){
     b.travel+=Math.hypot(b.vx,b.vy)*dt;
-    if(b.travel>b.range)b.state="ret";
+    if(b.travel>b.range){
+      if(b.storm){ dropGroundBall(b.x,b.y,b.vx*0.05,b.vy*0.05); removeMesh(b); game.balls.splice(i,1); return; }
+      b.state="ret";
+    }
   } else if(b.state==="ret"){
     b.retT+=dt;
     const o=b.owner, d=dist(b.x,b.y,o.x,o.y)||1;
@@ -1866,7 +1983,8 @@ function updateCamera(dt){
     lx=p.x; ly=18; lz=p.y;
   } else {
     const hx=Math.cos(p.a),hy=Math.sin(p.a);
-    dx=p.x-hx*112; dz=p.y-hy*112; dy=72;
+    const back=game.easy?122:112, up=game.easy?82:72;
+    dx=p.x-hx*back; dz=p.y-hy*back; dy=up;
     lx=p.x+hx*50; ly=13; lz=p.y+hy*50;
   }
   const k=Math.min(1,4.5*dt);
@@ -1904,6 +2022,12 @@ function updateHUD(){
     $("ammoRow").innerHTML=Array.from({length:S.carry},(_,i)=>
       `<div class="pip ${i<p.ammo?"full":""}"></div>`).join("");
   }
+  const iKey=p.item||"";
+  if(hudCache.item!==iKey){
+    hudCache.item=iKey;
+    const ib=$("itemBox"); ib.classList.toggle("on",!!p.item);
+    if(p.item){$("itemIco").textContent=POWERUPS[p.item].icon;$("itemNm").textContent=POWERUPS[p.item].name;$("itemTip").textContent=POWERUPS[p.item].tip;}
+  }
   const order=raceOrder(), pos=order.indexOf(p)+1;
   const lapShown=p.finished?LAPS:clamp(Math.floor(p.dist)+1,1,LAPS);
   const lKey=lapShown+"/"+pos;
@@ -1937,6 +2061,7 @@ function updateHUD(){
   const sp=TRACK.pts[0]; mm.strokeStyle="#fff"; mm.lineWidth=1.5;
   mm.beginPath(); mm.moveTo((sp.x-sp.nx*TRACK_W/2)*MS,(sp.y-sp.ny*TRACK_W/2)*MS); mm.lineTo((sp.x+sp.nx*TRACK_W/2)*MS,(sp.y+sp.ny*TRACK_W/2)*MS); mm.stroke();
   mm.fillStyle="#2a6db3"; mm.fillRect(POOL.x*MS,POOL.y*MS,POOL.w*MS,POOL.h*MS);
+  mm.fillStyle="#4fc3f7"; for(const b of ITEM_SPOTS){ if(b.t<=0)mm.fillRect(b.x*MS-2,b.y*MS-2,4,4); }
   mm.fillStyle="#fdd835";
   for(const g of game.groundBalls){mm.beginPath();mm.arc(g.x*MS,g.y*MS,1.5,0,TAU);mm.fill();}
   for(const c of game.cars){
@@ -2020,6 +2145,10 @@ function tick(now){
     if(waterMesh){waterMesh.material.map.offset.x+=dt*0.02;waterMesh.material.map.offset.y+=dt*0.013;}
     const pulse=1.1+0.5*Math.sin(now/180);
     for(const pm of padMeshes)pm.material.emissiveIntensity=pulse;
+    for(const b of ITEM_SPOTS){
+      if(b.t>0){ if(game.phase==="race"&&!game.paused){b.t-=dt; if(b.t<=0)b.mesh.visible=true;} }
+      else { b.mesh.rotation.y+=dt*1.6; b.mesh.rotation.x=0.4*Math.sin(now/700); b.mesh.position.y=20+3*Math.sin(now/300); }
+    }
     updateHUD();
     if(skyDome)skyDome.position.set(camera.position.x,0,camera.position.z);
     if(composer)composer.render(); else renderer.render(scene,camera);
@@ -2029,6 +2158,16 @@ function tick(now){
 /* ---------------- TOUCH CONTROLS ---------------- */
 // two layouts: "dpad" (◀ ▶ + ▲ gas / ▼ reverse buttons, the default) or "stick" (virtual joystick + auto-gas)
 game.touchScheme=(()=>{try{return localStorage.getItem("laxfoo.touch")||"dpad";}catch(_){return "dpad";}})();
+// easy mode (default on): auto-gas, smart steering, gentler shoulders and calmer AI — for the nine-year-olds
+game.easy=(()=>{try{return localStorage.getItem("laxfoo.easy")!=="0";}catch(_){return true;}})();
+function applyEasy(){
+  const t="EASY MODE: "+(game.easy?"ON":"OFF");
+  for(const id of ["btnEasy","btnEasyTitle"]){const b=$(id);if(b)b.textContent=t;}
+  try{localStorage.setItem("laxfoo.easy",game.easy?"1":"0");}catch(_){}
+}
+applyEasy();
+for(const id of ["btnEasy","btnEasyTitle"]){const b=$(id);if(b)b.onclick=()=>{game.easy=!game.easy;applyEasy();};}
+$("itemBox").addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();if(game.cars[0])useItem(game.cars[0]);});
 function applyTouchScheme(){
   const s=game.touchScheme;
   $("touchUI").classList.toggle("scheme-dpad",s==="dpad");
@@ -2082,6 +2221,24 @@ function applyTouchScheme(){
     jid=null; base.classList.remove("on"); input.joyActive=false; input.steer=0; input.throttle=null;
   };
   zone.addEventListener("pointerup",joyEnd); zone.addEventListener("pointercancel",joyEnd); zone.addEventListener("lostpointercapture",joyEnd);
+  // Minecraft-style: touch anywhere on the track and drag sideways to turn; a plain tap still throws where you tapped
+  const dz=$("dragZone"); let did=null,dsx=0,dsy=0,dragging=false;
+  dz.addEventListener("pointerdown",e=>{
+    if(did!==null)return; e.preventDefault(); did=e.pointerId; dsx=e.clientX; dsy=e.clientY; dragging=false;
+    try{dz.setPointerCapture(e.pointerId);}catch(_){}
+  });
+  dz.addEventListener("pointermove",e=>{
+    if(e.pointerId!==did)return;
+    const dx=e.clientX-dsx;
+    if(!dragging&&Math.hypot(dx,e.clientY-dsy)>14)dragging=true;
+    if(dragging){input.dragActive=true;input.dragSteer=clamp(dx/90,-1,1);}
+  });
+  const dragEnd=e=>{
+    if(e.pointerId!==did)return;
+    if(!dragging&&e.type==="pointerup")aimThrowAt(e.clientX,e.clientY);
+    did=null; dragging=false; input.dragActive=false; input.dragSteer=0;
+  };
+  dz.addEventListener("pointerup",dragEnd); dz.addEventListener("pointercancel",dragEnd); dz.addEventListener("lostpointercapture",dragEnd);
   addEventListener("gamepadconnected",e=>{addMsg("🎮 "+(e.gamepad.id||"Gamepad").split("(")[0].trim()+" connected","#8fd3ff");});
   bind($("tThrow"),()=>{const p=game.cars[0];if(p&&game.phase==="race"&&!game.paused)tryThrow(p);},()=>{});
   $("tPause").addEventListener("pointerdown",e=>{e.preventDefault();togglePause();});
